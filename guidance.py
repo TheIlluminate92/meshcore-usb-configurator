@@ -49,10 +49,10 @@ class BatteryHint(ttk.Frame):
         super().__init__(parent)
         self.key = key
         self.roomy = roomy
-        self.label = ttk.Label(self, text=ADVICE[key], width=0 if roomy else 31, wraplength=290 if roomy else 205, font=('Segoe UI', 10 if roomy else 9), style='Muted.TLabel')
-        self.label.pack(side='left', anchor='w')
+        self.label = ttk.Label(self, text=ADVICE[key], width=1 if roomy else 31, wraplength=290 if roomy else 205, font=('Segoe UI', 9), style='Muted.TLabel')
+        self.label.pack(side='left', anchor='w', fill='x' if roomy else 'none', expand=roomy)
         if roomy:
-            self.bind('<Configure>', lambda event: self.label.configure(wraplength=max(100,event.width-76)))
+            self.bind('<Configure>', lambda event: self.label.configure(wraplength=max(100,event.width-(70 if self.canvas.winfo_manager() else 8))))
         self.canvas = tk.Canvas(self, width=57, height=20, background='white', highlightthickness=0)
         self.update_value('')
 

@@ -1,5 +1,10 @@
 # Changelog
 
+## Equal columns on settings pages — 2026-09-09
+
+- Applied equal-width columns to Device & radio, Location & GPS, Contact discovery and Telemetry. Device values and setting labels now wrap, removing the fixed-width truncation. Suggestions and battery symbols share a reserved column.
+- Validation: 70 tests pass; all four populated pages fit at 1100x800 and 1920x1032, including long choice labels. Rebuilt the Windows executable.
+
 ## First-page cleanup and Windows executable — 2026-09-09
 
 - Added a standalone windowed Windows executable with bundled Python and dependencies; packaged user data lives in LocalAppData.

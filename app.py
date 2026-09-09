@@ -86,29 +86,33 @@ class App:
             notebook.add(editor, text=title)
             for column, label in enumerate(('Setting', 'Device value', 'Profile value', 'Suggestion')):
                 heading = ttk.Label(editor, text=label.upper(), style='Caption.TLabel')
-                heading.grid(row=0, column=column, sticky='w', padx=(12 if column == 3 else 0, 0), pady=(0, 8))
+                heading.grid(row=0, column=column, sticky='w', padx=(0, 12), pady=(0, 8))
                 if column in (1, 2):
                     Tooltip(heading, label, HELP['device_value' if column == 1 else 'profile_value'])
             for index, key in enumerate(keys, 1):
-                help_label(editor, FIELDS[key][0], HELP[key]).grid(row=index, column=0, sticky='w', padx=(0, 12), pady=4)
+                caption = help_label(editor, FIELDS[key][0], HELP[key])
+                caption.winfo_children()[0].configure(width=1)
+                caption.winfo_children()[0].pack_configure(fill='x', expand=True)
+                caption.grid(row=index, column=0, sticky='ew', padx=(0, 12), pady=3)
+                caption.bind('<Configure>', lambda e, label=caption.winfo_children()[0]: label.configure(wraplength=max(100, e.width-35)))
                 current = tk.StringVar(value='Not read')
-                ttk.Label(editor, textvariable=current, width=16 if title == 'Device & radio' else 22, style='Muted.TLabel').grid(row=index, column=1, sticky='w', padx=(0, 12))
+                value_label = ttk.Label(editor, textvariable=current, width=1, wraplength=220, style='Muted.TLabel')
+                value_label.grid(row=index, column=1, sticky='ew', padx=(0, 12))
+                value_label.bind('<Configure>', lambda e, label=value_label: label.configure(wraplength=max(100, e.width)))
                 variable = tk.StringVar()
                 if key in CHOICES:
                     entry = SettingBox(editor, textvariable=variable, values=list(CHOICES[key].values()), width=18, state='disabled')
                 else:
                     entry = ttk.Entry(editor, textvariable=variable, width=18, state='disabled')
-                entry.grid(row=index, column=2, sticky='ew')
-                self.hints[key] = BatteryHint(editor, key, roomy=title == 'Device & radio')
-                self.hints[key].grid(row=index, column=3, sticky='ew', padx=(18, 0), pady=3)
+                entry.grid(row=index, column=2, sticky='ew', padx=(0, 12))
+                self.hints[key] = BatteryHint(editor, key, roomy=True)
+                self.hints[key].grid(row=index, column=3, sticky='ew', padx=(0, 0), pady=1)
                 Tooltip(entry, FIELDS[key][0], HELP[key])
                 self.variables[key], self.entries[key], self.current[key] = variable, entry, current
                 variable.trace_add('write', lambda *_, k=key: self.edited())
-            editor.columnconfigure(2, weight=1)
-            if title == 'Device & radio':
-                editor.columnconfigure(2, minsize=210)
-                editor.columnconfigure(3, weight=2, minsize=320)
-            ttk.Label(editor, text=notes[title], wraplength=1020, style='Note.TLabel').grid(row=len(keys)+1, column=0, columnspan=4, sticky='w', pady=8)
+            for column in range(4):
+                editor.columnconfigure(column, weight=1, uniform='settings')
+            ttk.Label(editor, text=notes[title], wraplength=1020, style='Note.TLabel').grid(row=len(keys)+1, column=0, columnspan=4, sticky='w', pady=4)
         self.channel_page = ttk.Frame(notebook, padding=12)
         notebook.add(self.channel_page, text='Channels')
         ttk.Label(self.channel_page, text='Existing channels stay visible. Choose how many empty slots to add. Reducing this number does not delete channels or edits.\nClear a slot explicitly with an empty name and a zero key; writes still require Review & apply.', wraplength=1050).pack(anchor='w', pady=(0, 8))
