@@ -1,6 +1,8 @@
 # MeshCore Configurator — USB & Bluetooth
 
-Double-click **Start Configurator.cmd**. The launcher starts Python without a persistent command window. Choose **USB** or **Bluetooth**, click **Find devices**, select your radio, then **Read device**. Close other browser/phone connections first. Startup errors are shown in a dialog and saved in local `startup-error.log`.
+For the standalone Windows build, double-click **MeshCore Configurator.exe**; Python and a command window are not required. The packaged app stores profiles, history and reports under `%LOCALAPPDATA%/MeshCore Configurator`. Existing source-app profiles remain in the original `profiles` folder and can be imported through Saved profiles.
+
+For the source version, double-click **Start Configurator.cmd**. The launcher starts Python without a persistent command window. Choose **USB** or **Bluetooth**, click **Find devices**, select your radio, then **Read device**. Close other browser/phone connections first. Startup errors are shown in a dialog and saved in local `startup-error.log`.
 
 Hover over any setting label, input or **?** for a short explanation. Click **?** (or Tab to it and press Space/Enter) to keep the explanation open in a dialog. Help also covers channel fields, the USB port and action buttons, and remains available before a device is read.
 
@@ -121,3 +123,7 @@ For a persistence check, restart the radio yourself, select its current connecti
 The main editor asks before discarding pending changes when loading another profile, changing connections, rereading, opening batch work or closing. The batch window keeps its progress and stop controls visible at its minimum size.
 
 The local database can contain configuration values, including channel keys. Keep `data/` private along with profiles, reports and snapshots; all are excluded from Git.
+
+## Building the Windows executable
+
+After installing the project requirements in a Python 3.12 Windows environment with Tcl/Tk, run `build_exe.ps1`. The standalone windowed executable is produced under `dist`. Build outputs and private data are excluded from Git. The packaged entry point sets up bundled Tcl/Tk before importing the GUI library.

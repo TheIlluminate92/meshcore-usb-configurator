@@ -45,10 +45,14 @@ def impact(key, value):
     return None
 
 class BatteryHint(ttk.Frame):
-    def __init__(self, parent, key):
+    def __init__(self, parent, key, roomy=False):
         super().__init__(parent)
         self.key = key
-        ttk.Label(self, text=ADVICE[key], width=31, wraplength=205, font=('Segoe UI', 9), style='Muted.TLabel').pack(side='left')
+        self.roomy = roomy
+        self.label = ttk.Label(self, text=ADVICE[key], width=0 if roomy else 31, wraplength=290 if roomy else 205, font=('Segoe UI', 10 if roomy else 9), style='Muted.TLabel')
+        self.label.pack(side='left', anchor='w')
+        if roomy:
+            self.bind('<Configure>', lambda event: self.label.configure(wraplength=max(100,event.width-76)))
         self.canvas = tk.Canvas(self, width=57, height=20, background='white', highlightthickness=0)
         self.update_value('')
 
@@ -58,7 +62,7 @@ class BatteryHint(ttk.Frame):
         if level is None:
             self.canvas.pack_forget()
             return
-        self.canvas.pack(side='left', padx=(8, 0))
+        self.canvas.pack(side='right' if self.roomy else 'left', anchor='w', padx=(0, 0) if self.roomy else (8, 0))
         color = '#b45e36' if level >= 4 else '#007f79'
         for i in range(5):
             x = i*11+1

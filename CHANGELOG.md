@@ -1,6 +1,13 @@
 # Changelog
 
-## Fleet workflow � 2026-09-09
+## First-page cleanup and Windows executable — 2026-09-09
+
+- Added a standalone windowed Windows executable with bundled Python and dependencies; packaged user data lives in LocalAppData.
+- Expanded Device & radio suggestions with larger, wrapping text and reserved space for battery symbols; other pages retain their layout.
+- Fixed bundled Tcl/Tk initialization order during executable launch testing.
+- Validation: 70 automated tests passed, including minimum-window layout. Packaged startup opened all 23 settings and initialized history. No radio writes.
+
+## Fleet workflow — 2026-09-09
 
 - Added profile previews and side-by-side comparisons with missing-value and differences-only views; channel keys remain hidden.
 - Added per-profile naming prefixes and starting numbers, preserved through JSON import/export.
@@ -9,7 +16,7 @@
 - Added pending-edit discard prompts and reserved space for batch progress/stop controls at the minimum window size.
 - Validation: automated persistence, comparison, naming, failure, identity and restart-check tests; live hardware writes, restart persistence and Bluetooth remain pending bench validation.
 
-## Bug hunt — 2026-09-09
+## Bug hunt â€” 2026-09-09
 
 Fixes shipped in commit [af76e77](https://github.com/TheIlluminate92/meshcore-usb-configurator/commit/af76e77c4efd105498f83d479bc29c6c26e5f234).
 

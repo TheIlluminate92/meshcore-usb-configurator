@@ -15,7 +15,8 @@ from tooltips import Tooltip, help_label
 from theme import apply_theme
 from guidance import BatteryHint
 
-ROOT = Path(__file__).resolve().parent
+from app_paths import DATA_ROOT
+ROOT = DATA_ROOT
 
 class App:
     def __init__(self, root):
@@ -91,19 +92,22 @@ class App:
             for index, key in enumerate(keys, 1):
                 help_label(editor, FIELDS[key][0], HELP[key]).grid(row=index, column=0, sticky='w', padx=(0, 12), pady=4)
                 current = tk.StringVar(value='Not read')
-                ttk.Label(editor, textvariable=current, width=22, style='Muted.TLabel').grid(row=index, column=1, sticky='w', padx=(0, 12))
+                ttk.Label(editor, textvariable=current, width=16 if title == 'Device & radio' else 22, style='Muted.TLabel').grid(row=index, column=1, sticky='w', padx=(0, 12))
                 variable = tk.StringVar()
                 if key in CHOICES:
                     entry = SettingBox(editor, textvariable=variable, values=list(CHOICES[key].values()), width=18, state='disabled')
                 else:
                     entry = ttk.Entry(editor, textvariable=variable, width=18, state='disabled')
                 entry.grid(row=index, column=2, sticky='ew')
-                self.hints[key] = BatteryHint(editor, key)
-                self.hints[key].grid(row=index, column=3, sticky='w', padx=(12, 0), pady=3)
+                self.hints[key] = BatteryHint(editor, key, roomy=title == 'Device & radio')
+                self.hints[key].grid(row=index, column=3, sticky='ew', padx=(18, 0), pady=3)
                 Tooltip(entry, FIELDS[key][0], HELP[key])
                 self.variables[key], self.entries[key], self.current[key] = variable, entry, current
                 variable.trace_add('write', lambda *_, k=key: self.edited())
             editor.columnconfigure(2, weight=1)
+            if title == 'Device & radio':
+                editor.columnconfigure(2, minsize=210)
+                editor.columnconfigure(3, weight=2, minsize=320)
             ttk.Label(editor, text=notes[title], wraplength=1020, style='Note.TLabel').grid(row=len(keys)+1, column=0, columnspan=4, sticky='w', pady=8)
         self.channel_page = ttk.Frame(notebook, padding=12)
         notebook.add(self.channel_page, text='Channels')
