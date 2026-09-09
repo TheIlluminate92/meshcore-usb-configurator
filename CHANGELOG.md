@@ -1,5 +1,9 @@
 # Changelog
 
+## Update restart test — 0.5.4
+
+- Version-only test release to validate automatic update and restart from 0.5.3. No application behavior changes.
+
 ## Windows update restart — 0.5.3
 
 - Restart with a fresh PyInstaller runtime so the updated EXE does not reuse temporary files removed when the old app exits.
