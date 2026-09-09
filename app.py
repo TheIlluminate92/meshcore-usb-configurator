@@ -7,7 +7,7 @@ import threading
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import json
-from model import FIELDS, CHOICES, OTHER, AUTO, validate, validate_channels, load_document, profile, changes, display, parse_input
+from model import FIELDS, CHOICES, EDITABLE_CHOICES, OTHER, AUTO, validate, validate_channels, load_document, profile, changes, display, parse_input
 from device import serial_ports, read_device, apply_device, save_json
 
 ROOT = Path(__file__).resolve().parent
@@ -48,7 +48,7 @@ class App:
             'Telemetry': ('telemetry_mode_base', 'telemetry_mode_loc', 'telemetry_mode_env'),
         }
         notes = {
-            'Device & radio': 'Radio values must match your network. Repeat mode is preserved. Extra acknowledgements increase radio traffic; the editor limits these to 0–3.',
+            'Device & radio': 'Choose US/Canada or EU/UK frequency suggestions, or type a custom MHz value. Frequency selection changes frequency only; bandwidth, spreading factor and coding rate must also match your network. Bandwidth accepts dropdown choices or custom kHz values. Repeat mode is preserved.',
             'Location & GPS': 'Fixed coordinates require GPS to be off. GPS options depend on the hardware and firmware. Location sharing in adverts and telemetry access are separate settings.',
             'Contact discovery': '“Automatically add all types” overrides the individual type filters. Use selected types/manual mode to apply them. With all type filters off, contacts are added manually. The hop limit still applies.',
             'Telemetry': '“Allowed contacts only” uses each contact’s telemetry permission flags. Allowing location telemetry is separate from including location in adverts.',
@@ -212,7 +212,7 @@ class App:
             value = display(key, snapshot['settings'][key]) if supported else ''
             self.variables[key].set(value)
             self.current[key].set(value if supported else 'Not reported')
-            entry.configure(state=('readonly' if key in CHOICES else 'normal') if supported else 'disabled')
+            entry.configure(state=('readonly' if key in CHOICES and key not in EDITABLE_CHOICES else 'normal') if supported else 'disabled')
         self.show_channels(snapshot.get('channels', []))
         self.location_state()
         self.details.configure(state='normal')

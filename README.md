@@ -10,6 +10,7 @@ Every read saves a JSON snapshot under `snapshots`. Optional read errors are rec
 - Read device/self information, custom variables, contacts and channels (up to 64 reported slots).
 - 23 setting controls across Device & Radio, Location & GPS, Contact Discovery and Telemetry tabs. These include name, radio parameters, fixed coordinates, location sharing, GPS controls, contact discovery mode and type filters, replacement policy, discovery reach, telemetry permissions, extra acknowledgements and path-hash size.
 - Edit channel names and explicit 16-byte keys by numbered slot; verify both after writing. Keys are hidden in the editor.
+- Frequency dropdown: US/Canada 910.525 MHz, EU/UK narrow 869.618 MHz, EU/UK alternative 869.525 MHz. Bandwidth dropdown: 7.8 through 500 kHz common LoRa choices. Both allow typed custom values. Frequency suggestions change only frequency, not the other radio parameters; they are network examples, not a regulatory certification.
 - Versioned JSON profiles and import of the two supplied browser export structures.
 - Snapshot export and per-apply verification reports.
 

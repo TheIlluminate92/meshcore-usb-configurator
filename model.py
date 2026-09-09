@@ -36,6 +36,12 @@ AUTO_BITS = {'overwrite_oldest': 1, 'auto_add_chat': 2, 'auto_add_repeater': 4,
              'auto_add_room_server': 8, 'auto_add_sensor': 16}
 AUTO = tuple(AUTO_BITS) + ('auto_add_max_hops',)
 CHOICES = {k: {0: 'Off', 1: 'On'} for k in (*AUTO_BITS, 'gps', 'advert_location_policy')}
+# Editable suggestions preserve custom network values from existing profiles.
+EDITABLE_CHOICES = {'frequency', 'bandwidth'}
+CHOICES['frequency'] = {910.525: 'US / Canada — 910.525 MHz',
+                        869.618: 'EU / UK narrow — 869.618 MHz',
+                        869.525: 'EU / UK alternative — 869.525 MHz'}
+CHOICES['bandwidth'] = {n: str(n) for n in (7.8, 10.4, 15.6, 20.8, 31.25, 41.7, 62.5, 125, 250, 500)}
 CHOICES['manual_add_contacts'] = {0: 'Automatically add all types', 1: 'Use selected types below / manual'}
 for key in ('telemetry_mode_base', 'telemetry_mode_loc', 'telemetry_mode_env'):
     CHOICES[key] = {0: 'Deny', 1: 'Allowed contacts only', 2: 'Anyone'}
