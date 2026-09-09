@@ -20,6 +20,7 @@ class App:
     def __init__(self, root):
         self.root, self.snapshot, self.busy = root, None, False
         self.loading = False
+        self.batch_window = None
         self.pending = tk.StringVar(value='Read a radio to begin')
         self.support_summary = tk.StringVar(value='USB COMPANION  /  LOCAL CONFIGURATION')
         self.results = queue.Queue()
@@ -123,6 +124,9 @@ class App:
         self.variables['gps'].trace_add('write', lambda *_: self.location_state())
         self.details = tk.Text(notebook, wrap='none', font=('Consolas', 10), background='#f8fafc', foreground='#243c53', relief='flat', padx=16, pady=16)
         notebook.add(self.details, text='Device data')
+        from library_ui import LibraryPage
+        self.profile_page = LibraryPage(notebook, self, ROOT / 'profiles')
+        notebook.add(self.profile_page, text='Saved profiles')
         ttk.Label(footer, text='Battery icons appear where useful: more filled = higher drain. Rough guidance, not runtime. Radio costs apply during transmission.', style='Status.TLabel', wraplength=1040).pack(anchor='w', pady=(5, 0))
         ttk.Label(footer, textvariable=self.pending, style='Pending.TLabel').pack(anchor='w', pady=(13, 0))
         actions = ttk.Frame(footer, style='Root.TFrame')
@@ -423,6 +427,11 @@ class App:
             self.run(apply_device(self.selected_port(), self.snapshot, delta, ROOT / 'reports', channel_delta), done, 'Writing settings and verifying…')
 
     def close(self):
+        if self.batch_window is not None:
+            if self.batch_window.busy:
+                self.batch_window.close()
+                return
+            self.batch_window.close()
         if self.busy:
             messagebox.showinfo('Operation in progress', 'Wait for the device operation to finish before closing.')
         else:

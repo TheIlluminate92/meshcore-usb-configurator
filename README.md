@@ -16,7 +16,7 @@ Every read saves a JSON snapshot under `snapshots`. Optional read errors are rec
 - Versioned JSON profiles and import of the two supplied browser export structures.
 - Snapshot export and per-apply verification reports.
 
-Controls are enabled only for recognized values successfully read from the device. GPS interval is conditional on the device reporting it. Fixed-coordinate controls are disabled while GPS is enabled. Unknown custom variables, contact records and browser-specific metadata remain read-only. Firmware flashing, private-key changes, direct flash-file editing and batch writes are not included.
+Controls are enabled only for recognized values successfully read from the device. GPS interval is conditional on the device reporting it. Fixed-coordinate controls are disabled while GPS is enabled. Unknown custom variables, contact records and browser-specific metadata remain read-only. Firmware flashing, private-key changes and direct flash-file editing are not included. Reviewed batch writes are available through Saved profiles.
 
 Profile version 2 includes supported settings and optional channel slots; version 1 remains readable. Browser import maps radio, location, other settings, auto-add settings and channels. It explicitly reports skipped fields/metadata and requires review of channel order. Loading an export never restores identity or writes the device.
 
@@ -67,3 +67,18 @@ Requires a working Windows Bluetooth adapter, the installed Bleak dependency and
 Windows support libraries are installed in the local project. A scanner check on this PC reported Bluetooth unavailable/off, so a real BLE connection and write have not been tested. Discovery filtering, routing and failed-connection cleanup are tested with simulations. USB remains usable.
 
 The compact layout opens at 1180×820 and supports 1100×800. Suggestions align before smaller battery indicators, with no placeholder on unrelated settings.
+
+## Saved profiles and multiple devices
+
+Open **Saved profiles** to keep named profiles inside the app. **Save editor** lets you choose the included settings; name and fixed coordinates start unchecked. Existing named/keyed channels and explicit channel clears can be included, while unchanged empty slots are omitted from editor saves. **Update** replaces a selected profile with the chosen editor values. You can also load, rename, import, export or remove a profile. Removed profiles move into a local archive. Profiles are JSON stored under `profiles/`, including any channel keys; they are excluded from Git. No device identity/private key is included.
+
+Select a saved profile and choose **Apply profile to multiple devices**:
+
+1. Find USB or Bluetooth devices and select targets with Ctrl/Shift, or Select all.
+2. Read selected devices. Each target gets its own snapshot and identity.
+3. Review changes. Every selected target must report the requested settings/channel slots and satisfy its power limit. Selecting the same radio through two connections is blocked. Exact setting changes and channel names/key-change notices appear in the review.
+4. Apply reviewed. The existing single-device adapter checks identity and stale values again, sends changes, and verifies by rereading. Devices are processed sequentially.
+
+A failed device stops the batch; subsequent devices are marked Not attempted. Stop takes effect between devices, so an in-progress operation can finish and report its result. Completed changes are not rolled back. Batch summaries and individual apply reports remain local in `reports/`. A no-change target is labeled No changes at review, not freshly verified. Read again before another batch. Changing selection or rereading invalidates the previous review.
+
+Validation: 44 selected regression tests pass, including 10 new profile/batch tests covering persistence, archives, unsupported targets, duplicate identities, cancellation, no-op labels and partial failure. Additional UI checks covered field-selection defaults, saved-profile loading, two simulated devices and close-during-operation handling. No real multi-device writes were performed. BLE hardware validation is still pending; the existing local BLE dependency was inaccessible to this session, so its separate scanner test was excluded from this run.

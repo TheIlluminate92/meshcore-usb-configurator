@@ -16,3 +16,5 @@ Next development: validate expanded writes on the T114; inspect additional hardw
 
 
 Added no-console launcher, per-setting qualitative battery costs/recommendations, existing-plus-N-empty channel editor and USB/Bluetooth selection. Bluetooth runtime installed locally; Windows scan reports Bluetooth unavailable/off. BLE hardware validation pending. Recommendations are advisory; no automatic firmware or radio changes.
+
+Added Saved profiles tab (local named JSON, explicit field selection, update/load/import/export/rename/archive) and modal multiple-device workflow. New profiles omit names/coordinates by default; unchanged empty channels omitted from editor saves. Per-device snapshots and reviewed plans; unsupported settings block selected targets; duplicate identities rejected. Sequential writes call existing verified adapter; stop on failure/cancel between devices; reports saved locally. Main close waits for active batch. 44 selected tests and simulated fleet UI checks pass; real batch writes/BLE still unvalidated.
