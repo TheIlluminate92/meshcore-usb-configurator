@@ -88,6 +88,12 @@ async def apply_device(port, baseline, desired, report_dir):
         if set(values) - set(current['settings']):
             raise ValueError('Profile contains settings this device did not report.')
         delta = changes(current['settings'], values)
+        radio_changed = bool(set(RADIO) & delta.keys())
+        if radio_changed and current['device'].get('fw ver', 0) >= 9:
+            if type(current['device'].get('repeat')) is not bool:
+                raise ValueError('Device did not report repeat mode. Radio editing is blocked to avoid changing it inadvertently.')
+            if current['device']['repeat'] != baseline['device'].get('repeat'):
+                raise ValueError('Repeat mode changed since the last read. Read and review again.')
         merged = current['settings'] | values
         for group in (RADIO, COORDS):
             if set(group) & delta.keys() and not set(group) <= merged.keys():
@@ -101,7 +107,8 @@ async def apply_device(port, baseline, desired, report_dir):
             if 'name' in delta:
                 jobs.append(('name', lambda: mc.commands.set_name(merged['name'])))
             if set(RADIO) & delta.keys():
-                jobs.append(('radio', lambda: mc.commands.set_radio(*(merged[k] for k in RADIO))))
+                jobs.append(('radio', lambda: mc.commands.set_radio(*(merged[k] for k in RADIO),
+                            repeat=int(current['device']['repeat']) if current['device'].get('fw ver', 0) >= 9 else None)))
             if 'tx_power' in delta:
                 jobs.append(('tx_power', lambda: mc.commands.set_tx_power(merged['tx_power'])))
             if set(COORDS) & delta.keys():
@@ -112,6 +119,9 @@ async def apply_device(port, baseline, desired, report_dir):
                 save_json(report_path, report)
             after = await basic(mc, port)
             report['after'] = after
+            if radio_changed and current['device'].get('fw ver', 0) >= 9:
+                if after['device'].get('repeat') != current['device']['repeat']:
+                    raise RuntimeError('Read-back mismatch: repeat mode was not preserved.')
             mismatch = changes(after['settings'], values)
             if mismatch:
                 raise RuntimeError(f'Read-back mismatch in: {", ".join(mismatch)}')

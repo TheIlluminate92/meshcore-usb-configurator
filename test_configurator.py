@@ -50,6 +50,33 @@ class Profiles(unittest.TestCase):
         self.assertTrue(changes({'frequency': 910.525}, {'frequency': 910.527}))
 
 class Writes(unittest.IsolatedAsyncioTestCase):
+    async def test_radio_preserves_repeat(self):
+        current = copy.deepcopy(BASE)
+        current['device'].update({'fw ver': 9, 'repeat': True})
+        baseline = copy.deepcopy(current)
+        calls = []
+        async def set_radio(freq, bw, sf, cr, repeat=None):
+            calls.append(repeat)
+            current['settings'].update(frequency=freq, bandwidth=bw, spreading_factor=sf, coding_rate=cr)
+            current['device']['repeat'] = bool(repeat)
+            return SimpleNamespace(type=SimpleNamespace(name='OK'), payload={})
+        mc = SimpleNamespace(commands=SimpleNamespace(set_radio=set_radio))
+        async def operate(port, action):
+            return await action(mc)
+        async def basic(*args):
+            return copy.deepcopy(current)
+        with tempfile.TemporaryDirectory() as folder:
+            with patch.object(device, 'operate', operate), patch.object(device, 'basic', basic):
+                await device.apply_device('COM4', baseline, {'spreading_factor': 8}, folder)
+        self.assertEqual(calls, [1])
+
+    async def test_radio_without_reported_repeat_blocked(self):
+        altered = copy.deepcopy(BASE)
+        altered['device']['fw ver'] = 9
+        _, error, writes, _ = await self.exercise({'spreading_factor': 8}, altered=altered)
+        self.assertIn('did not report repeat', str(error))
+        self.assertFalse(writes)
+
     async def exercise(self, desired, *, altered=None, reject=False, mismatch=False):
         current = copy.deepcopy(altered or BASE)
         writes = []
