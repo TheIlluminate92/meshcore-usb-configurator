@@ -54,9 +54,19 @@ def display(key, value):
     return CHOICES.get(key, {}).get(value, str(value))
 
 def parse_input(key, text):
+    if not isinstance(text, str) or key not in CHOICES:
+        return text
+    text = text.strip()
     for value, label in CHOICES.get(key, {}).items():
-        if text == label:
+        if text.casefold() == label.casefold():
             return value
+    try:
+        number = float(text)
+        for value in CHOICES.get(key, {}):
+            if number == value:
+                return value
+    except ValueError:
+        pass
     return text
 
 def validate(settings, maximum_power=22):

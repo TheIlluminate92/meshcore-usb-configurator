@@ -2,7 +2,8 @@
 import copy
 import tkinter as tk
 from tkinter import ttk, messagebox
-from model import FIELDS, CHOICES, EDITABLE_CHOICES, validate, display, parse_input
+from setting_box import SettingBox
+from model import FIELDS, CHOICES, validate, display, parse_input
 from batch import plan_device, plan_many
 
 class SharedEditor:
@@ -29,7 +30,7 @@ class SharedEditor:
                 self.include[key]=check;self.values[key]=value
                 ttk.Checkbutton(page,text=FIELDS[key][0],variable=check,state='normal' if enabled else 'disabled').grid(row=row,column=0,sticky='w',padx=(0,16),pady=6)
                 if key in CHOICES:
-                    entry=ttk.Combobox(page,textvariable=value,values=list(CHOICES[key].values()),width=36,state=('normal' if key in EDITABLE_CHOICES else 'readonly') if enabled else 'disabled')
+                    entry=SettingBox(page,textvariable=value,values=list(CHOICES[key].values()),width=36,state='normal' if enabled else 'disabled')
                 else:entry=ttk.Entry(page,textvariable=value,width=36,state='normal' if enabled else 'disabled')
                 entry.grid(row=row,column=1,sticky='ew',pady=6)
                 if not enabled:ttk.Label(page,text='Not reported by every device',style='Muted.TLabel').grid(row=row,column=2,padx=8)

@@ -7,7 +7,8 @@ import threading
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import json
-from model import FIELDS, CHOICES, EDITABLE_CHOICES, OTHER, AUTO, validate, validate_channels, load_document, profile, changes, display, parse_input
+from setting_box import SettingBox
+from model import FIELDS, CHOICES, OTHER, AUTO, validate, validate_channels, load_document, profile, changes, display, parse_input
 from device import bluetooth_devices, serial_ports, read_device, apply_device, save_json
 from help_text import HELP
 from tooltips import Tooltip, help_label
@@ -88,7 +89,7 @@ class App:
                 ttk.Label(editor, textvariable=current, width=22, style='Muted.TLabel').grid(row=index, column=1, sticky='w', padx=(0, 12))
                 variable = tk.StringVar()
                 if key in CHOICES:
-                    entry = ttk.Combobox(editor, textvariable=variable, values=list(CHOICES[key].values()), width=18, state='disabled')
+                    entry = SettingBox(editor, textvariable=variable, values=list(CHOICES[key].values()), width=18, state='disabled')
                 else:
                     entry = ttk.Entry(editor, textvariable=variable, width=18, state='disabled')
                 entry.grid(row=index, column=2, sticky='ew')
@@ -288,7 +289,7 @@ class App:
             self.entries[key].configure(state='disabled' if gps_on or key not in self.snapshot['settings'] else 'normal')
         all_types = parse_input('manual_add_contacts', self.variables['manual_add_contacts'].get()) == 0
         for key in ('auto_add_chat', 'auto_add_repeater', 'auto_add_room_server', 'auto_add_sensor'):
-            self.entries[key].configure(state='disabled' if all_types or key not in self.snapshot['settings'] else 'readonly')
+            self.entries[key].configure(state='disabled' if all_types or key not in self.snapshot['settings'] else 'normal')
 
     def selected_port(self):
         if not self.port.get():
@@ -351,7 +352,7 @@ class App:
             value = display(key, snapshot['settings'][key]) if supported else ''
             self.variables[key].set(value)
             self.current[key].set(value if supported else 'Not reported')
-            entry.configure(state=('readonly' if key in CHOICES and key not in EDITABLE_CHOICES else 'normal') if supported else 'disabled')
+            entry.configure(state='normal' if supported else 'disabled')
         self.show_channels(snapshot.get('channels', []))
         self.location_state()
         self.details.configure(state='normal')
