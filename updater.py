@@ -61,7 +61,7 @@ def download(release,folder):
 
 def schedule_install(staged,executable,parent_pid,expected_digest):
     """Wait for the app to exit before replacing the EXE, retaining a backup."""
-    import base64,subprocess
+    import base64,subprocess,os
     staged=Path(staged).resolve();executable=Path(executable).resolve()
     if staged.parent != executable.parent/'User Data'/'Updates' or not re.fullmatch(r'ready(?:-[a-f0-9]{32})?\.exe',staged.name) or executable.suffix.lower()!='.exe':
         raise ValueError('Invalid portable update location.')
@@ -89,4 +89,8 @@ try {
 } catch { [IO.File]::WriteAllText($log,$_.Exception.Message) }
 """.replace('PAYLOAD',payload)
     encoded=base64.b64encode(script.encode('utf-16-le')).decode()
-    return subprocess.Popen(['powershell.exe','-NoProfile','-NonInteractive','-WindowStyle','Hidden','-EncodedCommand',encoded],creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0),close_fds=True)
+    # A restarted one-file app must unpack a fresh runtime after its parent exits.
+    # Otherwise PyInstaller treats it as a worker reusing deleted temporary files.
+    environment=dict(os.environ)
+    environment['PYINSTALLER_RESET_ENVIRONMENT']='1'
+    return subprocess.Popen(['powershell.exe','-NoProfile','-NonInteractive','-WindowStyle','Hidden','-EncodedCommand',encoded],env=environment,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0),close_fds=True)

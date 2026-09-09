@@ -24,3 +24,7 @@ Use the T114 bench unit first: make one deliberate setting change, review it, ap
 An update test needs a newer published release; public access requires no token. Confirm that the version changes after restart and profiles/history remain intact. Retain the previous executable until this succeeds.
 
 The explicit `integration_update_probe.py` check compiles harmless Windows executables in a temporary folder and runs the real replacement helper. It never opens radios or reads the user workspace. Fault-injection unit tests additionally cover interrupted/concurrent saves, preference write failures, newer database schemas, post-write identity/channel mismatches and disconnect errors.
+
+## 0.5.3 restart regression
+
+All 94 unit tests pass. The real one-file `integration_frozen_restart.py` probe replaces and restarts itself using the production helper, then confirms a fresh, existing PyInstaller extraction directory. The earlier non-PyInstaller helper test did not cover inherited runtime state. The frozen probe now also gates release publishing. Downloads-to-update-to-GUI on the user installation still needs confirmation; existing profiles and radios were not modified.

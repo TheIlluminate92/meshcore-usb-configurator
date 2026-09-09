@@ -41,6 +41,7 @@ class UpdateTests(unittest.TestCase):
             with patch('subprocess.Popen') as launch:
                 updater.schedule_install(staged,exe,123,digest)
                 command=launch.call_args.args[0]
+                self.assertEqual(launch.call_args.kwargs['env']['PYINSTALLER_RESET_ENVIRONMENT'],'1')
                 self.assertIn('-EncodedCommand',command)
                 import base64
                 script=base64.b64decode(command[-1]).decode('utf-16-le')

@@ -1,5 +1,11 @@
 # Changelog
 
+## Windows update restart — 0.5.3
+
+- Restart with a fresh PyInstaller runtime so the updated EXE does not reuse temporary files removed when the old app exits.
+- Added a real one-file packaged self-update probe; replacement and relaunch passed with a new, existing runtime directory. All 94 unit tests pass.
+- Updating from an older version can still require one manual reopen because the old updater performs that restart.
+
 ## Public repository updates — 0.5.2
 
 - Removed the updater token field, environment-token lookup and authorization headers. Public release checks and downloads require no sign-in.

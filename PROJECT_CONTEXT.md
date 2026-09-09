@@ -19,6 +19,6 @@ Read, edit, review, write, verify remain separate steps. Stop on batch write fai
 
 ## Current handoff
 
-Portable version 0.5.2 includes four equal-column settings pages, dark/light/system themes, checkbox batch selection, saved-profile application, comparison/history, naming defaults and update controls. User is testing the portable build; do not replace their running EXE or alter their data during documentation/maintenance work. The repository is now public; the updater uses anonymous GitHub release access.
+Portable version 0.5.3 includes four equal-column settings pages, dark/light/system themes, checkbox batch selection, saved-profile application, comparison/history, naming defaults and update controls. User is testing the portable build; do not replace their running EXE or alter their data during documentation/maintenance work. The repository is now public; the updater uses anonymous GitHub release access.
 
 The latest local validation is 94 passing tests, disposable Windows updater integration and packaged startup. Hardware and live-update gaps are tracked in VALIDATION.md. CHANGELOG.md retains historical bug notes; historical test counts are not the current suite count.

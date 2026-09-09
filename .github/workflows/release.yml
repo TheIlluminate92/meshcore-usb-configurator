@@ -24,6 +24,16 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -m unittest discover -q
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify packaged update restart
+        shell: pwsh
+        run: |
+          python -m PyInstaller --noconfirm --onefile --windowed --name FrozenRestartProbe --distpath build/frozen-restart-probe integration_frozen_restart.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Start-Process -FilePath 'build/frozen-restart-probe/FrozenRestartProbe.exe' -WindowStyle Hidden
+          $probeDeadline = (Get-Date).AddSeconds(90)
+          while (!(Test-Path 'build/frozen-restart-probe/probe-result.json') -and (Get-Date) -lt $probeDeadline) { Start-Sleep -Seconds 1 }
+          $probeResult = Get-Content 'build/frozen-restart-probe/probe-result.json' -ErrorAction Stop | ConvertFrom-Json
+          if (!$probeResult.fresh_runtime -or !$probeResult.runtime_exists) { throw 'Packaged restart failed.' }
       - name: Build portable EXE
         shell: pwsh
         run: |
