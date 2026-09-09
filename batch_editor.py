@@ -25,7 +25,7 @@ class SharedEditor:
             page=ttk.Frame(tabs,padding=12);tabs.add(page,text=title)
             for row,key in enumerate(keys):
                 enabled=key in common
-                check=tk.BooleanVar(value=enabled and (key in source if source else True))
+                check=tk.BooleanVar(value=enabled and (key in source if source or owner.shared_initialized else True))
                 value=tk.StringVar(value=display(key,source.get(key,snapshots[0]['settings'].get(key,''))))
                 self.include[key]=check;self.values[key]=value
                 ttk.Checkbutton(page,text=FIELDS[key][0],variable=check,state='normal' if enabled else 'disabled').grid(row=row,column=0,sticky='w',padx=(0,16),pady=6)
@@ -54,6 +54,7 @@ class SharedEditor:
             for s in self.snapshots:plan_device(s,document)
         except Exception as exc:messagebox.showerror('Shared settings',str(exc),parent=self.window);return
         self.owner.document=document;self.owner.individual={};self.owner.invalidate_review()
+        self.owner.shared_initialized=True
         self.owner.heading.set('Shared settings: Batch editor')
         self.close();self.owner.individual_step()
 

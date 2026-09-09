@@ -8,6 +8,8 @@ baselines/
 backups/
 # Local runtime and build products
 vendor/
+bluetooth_libs/
+bluetooth_wheels/
 tcl/
 .venv/
 __pycache__/

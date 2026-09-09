@@ -81,7 +81,7 @@ Select a saved profile and choose **Apply profile to multiple devices**:
 
 A failed device stops the batch; subsequent devices are marked Not attempted. Stop takes effect between devices, so an in-progress operation can finish and report its result. Completed changes are not rolled back. Batch summaries and individual apply reports remain local in `reports/`. A no-change target is labeled No changes at review, not freshly verified. Read again before another batch. Changing selection or rereading invalidates the previous review.
 
-Validation: 44 selected regression tests pass, including 10 new profile/batch tests covering persistence, archives, unsupported targets, duplicate identities, cancellation, no-op labels and partial failure. Additional UI checks covered field-selection defaults, saved-profile loading, two simulated devices and close-during-operation handling. No real multi-device writes were performed. BLE hardware validation is still pending; the existing local BLE dependency was inaccessible to this session, so its separate scanner test was excluded from this run.
+Validation: 44 selected regression tests pass, including 10 new profile/batch tests covering persistence, archives, unsupported targets, duplicate identities, cancellation, no-op labels and partial failure. Additional UI checks covered field-selection defaults, saved-profile loading, two simulated devices and close-during-operation handling. No real multi-device writes were performed. BLE hardware validation is still pending; the Bluetooth dependency issue from that run has since been repaired; see the bug-hunt validation below.
 
 ## Batch editor with individual names
 
@@ -96,3 +96,14 @@ Previous/Next only stage edits. Finish opens the combined shared-plus-individual
 Validation: 50 selected regression tests pass, including shared-plus-individual plan composition, duplicate names, wrong override fields, per-device coordinates, numbering through two simulated radios, cancellation and supported-field filtering. Real multi-radio writing remains a bench-validation task.
 
 Setting dropdowns in the main and shared batch editors open when clicking anywhere in the field. Typing while the list is open returns focus to the field and replaces its value; picking a listed option still works normally. Known option labels are case-insensitive. Values still pass the existing validation before review/apply; unreported fields remain disabled.
+
+## Bug-hunt fixes
+
+- Invalid typed numbers such as NaN/infinity no longer crash battery hints. Applying still rejects them.
+- Channels-only profiles and intentionally unchecked shared settings no longer automatically expand into radio-setting changes when reopened.
+- Malformed profile names/identifiers are reported as unreadable files without breaking the library.
+- Updating a saved profile retains its channel-slot scope, and refuses to silently drop settings/slots not read by the current editor.
+- Batch writes preflight all channel slots included in the shared profile, including unchanged ones, to catch changes since review.
+- The local inaccessible Bluetooth dependency was replaced with a freshly extracted project-local copy. The launcher prefers `bluetooth_libs/` when present; downloaded dependencies stay excluded from Git. Normal Windows setup still installs requirements into the virtual environment.
+
+Current validation: all 60 tests pass, including scanner filtering and the new regression cases. A read-only COM4 check returned 22 settings and 40 channels with zero read errors. Bluetooth now loads correctly, but Windows still reports its scanner unavailable/off. No hardware writes were performed; live Bluetooth connections and multi-radio writes still need bench validation.

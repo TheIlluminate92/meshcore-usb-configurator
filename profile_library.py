@@ -16,6 +16,10 @@ class ProfileLibrary:
             try:
                 settings, channels, _ = load_document(path)
                 data = json.loads(path.read_text(encoding='utf-8'))
+                if not isinstance(data.get('profile_name'),str) or not data['profile_name'].strip() or len(data['profile_name'])>80:
+                    raise ValueError('Invalid profile name')
+                if str(uuid.UUID(path.stem))!=path.stem:
+                    raise ValueError('Invalid profile identifier')
                 entries.append({'id':path.stem, 'name':data['profile_name'], 'settings':settings, 'channels':channels})
             except Exception:
                 errors.append(path.name)

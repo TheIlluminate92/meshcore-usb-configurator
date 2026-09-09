@@ -23,13 +23,14 @@ def plan_device(snapshot, document):
         raise ValueError('Repeat mode was not reported; radio changes blocked.')
     known={c['index']:c for c in snapshot.get('channels',[])}
     channels=[]
-    for c in validate_channels(document.get('channels',[])):
+    channel_checks=validate_channels(document.get('channels',[]))
+    for c in channel_checks:
         if c['index'] not in known:
             raise ValueError(f"Channel slot {c['index']} was not read on this device.")
         if c!=known[c['index']]: channels.append(c)
     if not snapshot['self_info'].get('public_key'):
         raise ValueError('Device identity was not reported.')
-    return copy.deepcopy({'port':snapshot['port'],'baseline':snapshot,'settings':delta,'channels':channels})
+    return copy.deepcopy({'port':snapshot['port'],'baseline':snapshot,'settings':delta,'channels':channels,'channel_checks':channel_checks})
 
 def plan_many(snapshots, document, individual=None):
     plans=[]
@@ -73,7 +74,7 @@ async def apply_many(plans, folder, cancelled=lambda:False, progress=lambda *arg
         else:
             progress(plan['port'],'Writing and verifying…')
             try:
-                item['after']=await apply_device(plan['port'],plan['baseline'],plan['settings'],folder,plan['channels'])
+                item['after']=await apply_device(plan['port'],plan['baseline'],plan['settings'],folder,plan.get('channel_checks',plan['channels']))
                 item['status']='Verified'
             except Exception as exc:
                 item['status']='Failed — reread required'

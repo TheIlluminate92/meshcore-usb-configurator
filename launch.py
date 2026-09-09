@@ -6,6 +6,8 @@ import sys
 base = Path(__file__).resolve().parent
 os.chdir(base)
 sys.path.insert(0, str(base / 'vendor'))
+if (base / 'bluetooth_libs').is_dir():
+    sys.path.insert(0, str(base / 'bluetooth_libs'))
 if (base / 'tcl/tcl8.6/init.tcl').exists():
     os.environ['TCL_LIBRARY'] = 'tcl/tcl8.6'
     os.environ['TK_LIBRARY'] = 'tcl/tk8.6'

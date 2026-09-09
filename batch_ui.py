@@ -13,6 +13,7 @@ from batch import plan_many, apply_many
 class BatchWindow:
     def __init__(self, app, document=None):
         self.app=app;self.document=copy.deepcopy(document or {'name':'Batch editor','settings':{},'channels':[]})
+        self.shared_initialized=document is not None
         for key in ('name','latitude','longitude'):self.document['settings'].pop(key,None)
         self.individual={}
         self.window=tk.Toplevel(app.root);self.window.title('Batch editor — '+self.document['name'])

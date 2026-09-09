@@ -62,7 +62,7 @@ class LibraryPage(ttk.Frame):
             variable=tk.BooleanVar(value=key in existing['settings'] if existing else key not in PERSONAL);fields[key]=variable
             ttk.Checkbutton(frame,text=FIELDS[key][0],variable=variable).grid(row=2+i//3,column=i%3,sticky='w',padx=(0,12),pady=4)
         row=3+(len(fields)+2)//3
-        include=tk.BooleanVar(value=bool(channels))
+        include=tk.BooleanVar(value=bool(existing['channels']) if existing else bool(channels))
         ttk.Checkbutton(frame,text=f"Include {len(channels)} channel slots (names and keys)",variable=include).grid(row=row,column=0,columnspan=3,sticky='w',pady=8)
         ttk.Label(frame,text='New profiles exclude names and coordinates by default. Saving the editor omits unchanged empty slots.',wraplength=760,style='Muted.TLabel').grid(row=row+1,column=0,columnspan=3,sticky='w')
         def save():
@@ -74,7 +74,15 @@ class LibraryPage(ttk.Frame):
     def save_editor(self, existing=None):
         settings=self.app.desired()
         old={c['index']:c for c in self.app.snapshot.get('channels',[])}
-        channels=[c for c in self.app.desired_channels() if c['name'] or c['secret']!='00'*16 or c!=old[c['index']]]
+        desired_channels=self.app.desired_channels()
+        if existing:
+            missing=set(existing['settings'])-set(settings)
+            slots={c['index'] for c in existing['channels']}
+            if missing or slots-set(old):
+                raise ValueError('This editor did not read every field/slot in the saved profile. Read a compatible device before updating it, or save a new profile.')
+            channels=[c for c in desired_channels if c['index'] in slots]
+        else:
+            channels=[c for c in desired_channels if c['name'] or c['secret']!='00'*16 or c!=old[c['index']]]
         self.choose_scope(settings,channels,existing['name'] if existing else '',existing)
 
     def update_editor(self):

@@ -1,5 +1,6 @@
 """Qualitative hints, not measured runtime or an automatic configuration preset."""
 import tkinter as tk
+import math
 from tkinter import ttk
 from model import parse_input
 
@@ -33,6 +34,7 @@ def impact(key, value):
     """Relative impact within each setting only: None means unquantified."""
     try: v = float(parse_input(key, value))
     except (TypeError, ValueError): return None
+    if not math.isfinite(v): return None
     if key == 'gps': return 5 if v else 0
     if key == 'tx_power': return 1 if v <= 0 else 2 if v <= 10 else 3 if v <= 17 else 4 if v <= 20 else 5
     if key == 'spreading_factor': return max(1, min(5, int(v)-6))
