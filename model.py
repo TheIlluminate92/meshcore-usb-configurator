@@ -9,7 +9,7 @@ FIELDS = {
     'bandwidth': ('Bandwidth (kHz)', float, 7.8, 500),
     'spreading_factor': ('Spreading factor', int, 5, 12),
     'coding_rate': ('Coding rate', int, 5, 8),
-    'tx_power': ('Transmit power (dBm)', int, 0, 22),
+    'tx_power': ('Transmit power (dBm)', int, -9, 22),
     'latitude': ('Latitude', float, -90, 90),
     'longitude': ('Longitude', float, -180, 180),
     'manual_add_contacts': ('Contact discovery mode', int, 0, 1),
@@ -94,7 +94,11 @@ def load_profile(path):
     if 'schema_version' in data:
         if data['schema_version'] not in (1, 2) or data.get('format') != 'meshcore-usb-profile':
             raise ValueError('Unrecognized profile format or version.')
-        return validate(data['settings'])
+        units = data.get('units', {})
+        expected = {'frequency': 'MHz', 'bandwidth': 'kHz', 'tx_power': 'dBm'}
+        if not isinstance(units, dict) or any(k in units and units[k] != v for k, v in expected.items()):
+            raise ValueError('Profile units must be MHz, kHz and dBm.')
+        return validate(data.get('settings'))
     if not {'name', 'radio_settings', 'position_settings'} <= data.keys():
         raise ValueError('Expected a MeshCore browser export or configurator profile.')
     radio = data['radio_settings']
@@ -159,9 +163,9 @@ def load_document(path):
 
 def equal(key, a, b):
     if key in ('frequency', 'bandwidth'):
-        return abs(float(a) - float(b)) < .0011
+        return round(float(a) * 1000) == round(float(b) * 1000)
     if key in COORDS:
-        return abs(float(a) - float(b)) < .0000011
+        return round(float(a) * 1e6) == round(float(b) * 1e6)
     return a == b
 
 def changes(current, desired):

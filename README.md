@@ -26,7 +26,7 @@ On the T114 bench unit, the expanded reader retrieved 22 supported settings and 
 
 `model.py` owns profile validation and unit conversion. Browser exports report frequency in kHz and bandwidth in Hz; profile/command values use MHz and kHz respectively. `device.py` uses the meshcore Python library's framed Companion serial protocol at 115200 baud. Firmware internal JSON storage is not accessed. `app.py` handles the GUI and sends serial work to a background worker. The adapter accepts an explicit port and can later be used by a multi-device queue; each device will need its own read, capability checks, identity binding and result.
 
-This first implementation uses known Companion commands and fields that are present in responses; this is not general firmware capability discovery. Firmware remains the authority on board-specific radio limits. TX power is conservatively limited to 0–22 dBm and the reported maximum, whichever is lower. Hardware compatibility, persistence across power cycles and T1000-E magnetic USB behavior still require bench validation.
+This first implementation uses known Companion commands and fields that are present in responses; this is not general firmware capability discovery. Firmware remains the authority on board-specific radio limits. TX power is conservatively limited to −9–22 dBm and the reported maximum, whichever is lower. Hardware compatibility, persistence across power cycles and T1000-E magnetic USB behavior still require bench validation.
 
 ## Windows setup from GitHub
 
@@ -44,3 +44,8 @@ Device exports, JSON profiles, snapshots, reports, local dependencies and secret
 - https://github.com/meshcore-dev/meshcore_py/blob/main/src/meshcore/commands/device.py
 
 Snapshots may contain channel secrets, PINs, contact details and location. Keep them local with your configuration backups.
+
+## Interface and settings audit
+
+The light interface uses a navy header, teal action buttons, hover/click help, highlighted pending edits and a pending-change count. Unsupported controls stay disabled. See [SETTINGS_AUDIT.md](SETTINGS_AUDIT.md) for the full settings review, corrections and validation limits.
+

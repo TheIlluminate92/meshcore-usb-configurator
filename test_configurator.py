@@ -46,7 +46,9 @@ class Profiles(unittest.TestCase):
             validate({'tx_power': 20}, maximum_power=14)
 
     def test_precision(self):
-        self.assertFalse(changes({'latitude': 1.000001}, {'latitude': 1.0000019}))
+        self.assertTrue(changes({'latitude': 1.000001}, {'latitude': 1.000002}))
+        self.assertFalse(changes({'latitude': 1.000001}, {'latitude': 1.00000100001}))
+        self.assertTrue(changes({'frequency': 910.525}, {'frequency': 910.526}))
         self.assertTrue(changes({'frequency': 910.525}, {'frequency': 910.527}))
 
 class Writes(unittest.IsolatedAsyncioTestCase):
@@ -55,12 +57,14 @@ class Writes(unittest.IsolatedAsyncioTestCase):
         current['device'].update({'fw ver': 9, 'repeat': True})
         baseline = copy.deepcopy(current)
         calls = []
-        async def set_radio(freq, bw, sf, cr, repeat=None):
+        async def send(packet, expected):
+            import struct
+            _, freq, bw, sf, cr, repeat = struct.unpack('<BIIBBB', packet)
             calls.append(repeat)
-            current['settings'].update(frequency=freq, bandwidth=bw, spreading_factor=sf, coding_rate=cr)
+            current['settings'].update(frequency=freq / 1000, bandwidth=bw / 1000, spreading_factor=sf, coding_rate=cr)
             current['device']['repeat'] = bool(repeat)
             return SimpleNamespace(type=SimpleNamespace(name='OK'), payload={})
-        mc = SimpleNamespace(commands=SimpleNamespace(set_radio=set_radio))
+        mc = SimpleNamespace(commands=SimpleNamespace(send=send))
         async def operate(port, action):
             return await action(mc)
         async def basic(*args):

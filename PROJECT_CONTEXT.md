@@ -11,3 +11,6 @@ JSON is the application profile/interchange format. The application communicates
 Current implementation provides 23 conditional setting controls plus channel editing, with grouped preservation and reread verification. The expanded USB read on the T114 returned 22 settings and 40 channel slots without errors; GPS interval was not reported. A prior write attempt failed opening COM4; a cleanup race was fixed and tested with the actual asynchronous serial transport over a loopback port. Successful hardware writing and persistence after restart have not yet been confirmed.
 
 Next development: validate expanded writes on the T114; inspect additional hardware-specific settings only where supported protocol operations exist; then build a device-by-device batch queue with individual reports and naming rules. Channel profile handling must not copy private device identity.
+
+2026-09-09: refreshed desktop theme and pending-edit feedback; audited all controls against Companion 1.17.1. Fixed signed power, wire precision and snapshot-scope reporting. 31 tests pass; fresh COM4 read returned 22 settings/40 channels without errors. No hardware writes performed. Details in SETTINGS_AUDIT.md.
+

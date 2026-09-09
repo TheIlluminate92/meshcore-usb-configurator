@@ -13,3 +13,6 @@ The connected build reported v1.17.1-d929643; the release tag is the baseline, n
 | Auto-add | GET_AUTOADD_CONFIG (59), SET_AUTOADD_CONFIG (58) | Decode flags before exposing controls; maximum hop value is capped at 64. |
 
 These groups now have editor controls and read-back checks. GPS controls use reported custom variables; path-hash mode uses its dedicated command. Firmware-only preferences and browser metadata are not automatically editable. Private identity is excluded from fleet profiles. Both original exports stay local.
+
+See [SETTINGS_AUDIT.md](SETTINGS_AUDIT.md) for the 2026-09-09 review of all controls, limits, field dependencies and wire precision.
+

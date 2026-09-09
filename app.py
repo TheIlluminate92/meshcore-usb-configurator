@@ -11,25 +11,30 @@ from model import FIELDS, CHOICES, EDITABLE_CHOICES, OTHER, AUTO, validate, vali
 from device import serial_ports, read_device, apply_device, save_json
 from help_text import HELP
 from tooltips import Tooltip, help_label
+from theme import apply_theme
 
 ROOT = Path(__file__).resolve().parent
 
 class App:
     def __init__(self, root):
         self.root, self.snapshot, self.busy = root, None, False
+        self.loading = False
+        self.pending = tk.StringVar(value='Read a radio to begin')
+        self.support_summary = tk.StringVar(value='USB COMPANION  /  LOCAL CONFIGURATION')
         self.results = queue.Queue()
         root.title('MeshCore USB Configurator — Expanded settings')
-        root.geometry('1000x740')
-        root.minsize(850, 650)
-        style = ttk.Style()
-        if 'vista' in style.theme_names():
-            style.theme_use('vista')
-        style.configure('TLabel', font=('Segoe UI', 10))
-        outer = ttk.Frame(root, padding=18)
+        root.geometry('1180x850')
+        root.minsize(1080, 790)
+        apply_theme(root)
+        outer = ttk.Frame(root, padding=16, style='Root.TFrame')
         outer.pack(fill='both', expand=True)
-        ttk.Label(outer, text='MeshCore USB Configurator', font=('Segoe UI', 20, 'bold')).pack(anchor='w')
-        ttk.Label(outer, text='Read a device • Edit a profile • Review changes • Write and verify').pack(anchor='w', pady=(3, 14))
-        row = ttk.Frame(outer)
+        header = ttk.Frame(outer, padding=(24, 14), style='Header.TFrame')
+        header.pack(fill='x', pady=(0, 14))
+        ttk.Label(header, text='MeshCore  /  USB Configurator', style='Title.TLabel').pack(anchor='w')
+        ttk.Label(header, text='01  Connect & read     →     02  Edit profile     →     03  Review & verify', style='Subtitle.TLabel').pack(anchor='w', pady=(8, 0))
+        connection = ttk.Frame(outer, padding=(18, 12))
+        connection.pack(fill='x', pady=(0, 14))
+        row = ttk.Frame(connection)
         row.pack(fill='x')
         self.port = tk.StringVar()
         self.port_box = ttk.Combobox(row, textvariable=self.port, width=43, state='readonly')
@@ -38,10 +43,14 @@ class App:
         help_label(row, 'USB', HELP['port']).pack(side='left')
         self.port_box.bind('<<ComboboxSelected>>', lambda _: self.invalidate())
         self.buttons = []
+        self.action_buttons = {}
         self.button(row, 'Refresh ports', self.scan)
         self.button(row, 'Read device', self.read)
         self.identity = tk.StringVar(value='No device read. Connect a Companion USB device, then select its port.')
-        ttk.Label(outer, textvariable=self.identity, wraplength=930).pack(anchor='w', pady=12)
+        ttk.Label(connection, textvariable=self.identity, wraplength=1030, style='Muted.TLabel').pack(anchor='w', pady=(10, 4))
+        ttk.Label(connection, textvariable=self.support_summary, style='Caption.TLabel').pack(anchor='w')
+        footer = ttk.Frame(outer, style='Root.TFrame')
+        footer.pack(side='bottom', fill='x')
         notebook = ttk.Notebook(outer)
         notebook.pack(fill='both', expand=True)
         self.variables, self.entries, self.current = {}, {}, {}
@@ -55,20 +64,20 @@ class App:
             'Device & radio': 'Choose US/Canada or EU/UK frequency suggestions, or type a custom MHz value. Frequency selection changes frequency only; bandwidth, spreading factor and coding rate must also match your network. Bandwidth accepts dropdown choices or custom kHz values. Repeat mode is preserved.',
             'Location & GPS': 'Fixed coordinates require GPS to be off. GPS options depend on the hardware and firmware. Location sharing in adverts and telemetry access are separate settings.',
             'Contact discovery': '“Automatically add all types” overrides the individual type filters. Use selected types/manual mode to apply them. With all type filters off, contacts are added manually. The hop limit still applies.',
-            'Telemetry': '“Allowed contacts only” uses each contact’s telemetry permission flags. Allowing location telemetry is separate from including location in adverts.',
+            'Telemetry': 'Device telemetry access must allow a requester before location or environment telemetry can be returned. “Allowed contacts only” uses each contact’s permission flags. Location in adverts is controlled separately.',
         }
         for title, keys in groups.items():
             editor = ttk.Frame(notebook, padding=12)
             notebook.add(editor, text=title)
             for column, label in enumerate(('Setting', 'Device value', 'Profile value')):
-                heading = ttk.Label(editor, text=label, font=('Segoe UI', 10, 'bold'))
+                heading = ttk.Label(editor, text=label.upper(), style='Caption.TLabel')
                 heading.grid(row=0, column=column, sticky='w')
                 if column:
                     Tooltip(heading, label, HELP['device_value' if column == 1 else 'profile_value'])
             for index, key in enumerate(keys, 1):
-                help_label(editor, FIELDS[key][0], HELP[key]).grid(row=index, column=0, sticky='w', padx=(0, 12), pady=8)
+                help_label(editor, FIELDS[key][0], HELP[key]).grid(row=index, column=0, sticky='w', padx=(0, 12), pady=4)
                 current = tk.StringVar(value='Not read')
-                ttk.Label(editor, textvariable=current, width=30).grid(row=index, column=1, sticky='w')
+                ttk.Label(editor, textvariable=current, width=30, style='Muted.TLabel').grid(row=index, column=1, sticky='w', padx=(0, 12))
                 variable = tk.StringVar()
                 if key in CHOICES:
                     entry = ttk.Combobox(editor, textvariable=variable, values=list(CHOICES[key].values()), width=30, state='disabled')
@@ -77,12 +86,13 @@ class App:
                 entry.grid(row=index, column=2, sticky='ew')
                 Tooltip(entry, FIELDS[key][0], HELP[key])
                 self.variables[key], self.entries[key], self.current[key] = variable, entry, current
+                variable.trace_add('write', lambda *_, k=key: self.edited())
             editor.columnconfigure(2, weight=1)
-            ttk.Label(editor, text=notes[title], wraplength=890).grid(row=len(keys)+1, column=0, columnspan=3, sticky='w', pady=15)
+            ttk.Label(editor, text=notes[title], wraplength=1020, style='Note.TLabel').grid(row=len(keys)+1, column=0, columnspan=3, sticky='w', pady=8)
         self.channel_page = ttk.Frame(notebook, padding=12)
         notebook.add(self.channel_page, text='Channels')
         ttk.Label(self.channel_page, text='Edit existing numbered slots. Keys are hexadecimal and hidden. Empty name with a zero key clears a slot.\nOnly changed slots are written. Browser exports map channels by list order; review the slot assignments.', wraplength=890).pack(anchor='w', pady=(0, 10))
-        self.channel_canvas = tk.Canvas(self.channel_page, highlightthickness=0)
+        self.channel_canvas = tk.Canvas(self.channel_page, highlightthickness=0, background='white')
         scrollbar = ttk.Scrollbar(self.channel_page, orient='vertical', command=self.channel_canvas.yview)
         scrollbar.pack(side='right', fill='y')
         self.channel_canvas.pack(fill='both', expand=True)
@@ -93,19 +103,21 @@ class App:
         self.channel_rows.bind('<Configure>', lambda e: self.channel_canvas.configure(scrollregion=self.channel_canvas.bbox('all')))
         self.channel_vars, self.channel_entries = {}, []
         self.variables['gps'].trace_add('write', lambda *_: self.location_state())
-        self.details = tk.Text(notebook, wrap='none', font=('Consolas', 10))
-        notebook.add(self.details, text='Reported data (read only)')
-        actions = ttk.Frame(outer)
+        self.details = tk.Text(notebook, wrap='none', font=('Consolas', 10), background='#f8fafc', foreground='#243c53', relief='flat', padx=16, pady=16)
+        notebook.add(self.details, text='Device data')
+        ttk.Label(footer, textvariable=self.pending, style='Pending.TLabel').pack(anchor='w', pady=(13, 0))
+        actions = ttk.Frame(footer, style='Root.TFrame')
         actions.pack(fill='x', pady=12)
         self.button(actions, 'Load JSON profile', self.load)
         self.button(actions, 'Save JSON profile', self.save)
         self.button(actions, 'Save device snapshot', self.save_snapshot)
         self.button(actions, 'Review & apply', self.apply)
         self.status = tk.StringVar(value='Ready. No configuration has been written.')
-        ttk.Label(outer, textvariable=self.status, wraplength=930).pack(anchor='w')
+        ttk.Label(footer, textvariable=self.status, wraplength=1010, style='Status.TLabel').pack(anchor='w')
         root.protocol('WM_DELETE_WINDOW', self.close)
         root.after(100, self.poll)
         self.scan()
+        self.edited()
 
     def button(self, frame, text, command):
         def guarded():
@@ -113,9 +125,10 @@ class App:
                 command()
             except Exception as exc:
                 messagebox.showerror('MeshCore Configurator', str(exc))
-        b = ttk.Button(frame, text=text, command=guarded)
+        b = ttk.Button(frame, text=text, command=guarded, style='Primary.TButton' if text in ('Read device', 'Review & apply') else 'TButton')
         b.pack(side='left', padx=(8, 0))
         self.buttons.append(b)
+        self.action_buttons[text] = b
         if text in HELP:
             Tooltip(b, text, HELP[text])
 
@@ -129,6 +142,7 @@ class App:
         self.status.set(f'{len(ports)} serial port(s) found. Select the USB device and read it.')
 
     def invalidate(self):
+        self.loading = True
         self.snapshot = None
         self.identity.set('Read this port to identify the device and enable supported settings.')
         for key, entry in self.entries.items():
@@ -136,6 +150,36 @@ class App:
             self.current[key].set('—')
             self.variables[key].set('')
         self.show_channels([])
+        self.loading = False
+        self.support_summary.set('NO DEVICE READ')
+        self.edited()
+
+    def edited(self):
+        if self.loading or not hasattr(self, 'action_buttons'):
+            return
+        count, channel_count = 0, 0
+        for key, entry in self.entries.items():
+            changed = False
+            if self.snapshot is not None and key in self.snapshot['settings']:
+                try:
+                    value = validate({key: parse_input(key, self.variables[key].get())})[key]
+                    changed = bool(changes({key: self.snapshot['settings'][key]}, {key: value}))
+                except ValueError:
+                    changed = True
+            count += int(changed)
+            kind = 'TCombobox' if key in CHOICES else 'TEntry'
+            entry.configure(style=('Changed.' if changed else '')+kind)
+        before = {c['index']: c for c in self.snapshot.get('channels', [])} if self.snapshot else {}
+        for index, (name, secret) in self.channel_vars.items():
+            if index in before and (name.get() != before[index]['name'] or secret.get().lower() != before[index]['secret']):
+                channel_count += 1
+        self.pending.set(f'{count} setting changes  ·  {channel_count} channel slots pending' if count or channel_count else ('Up to date  ·  No pending edits' if self.snapshot else 'Read a radio to begin'))
+        for name, button in self.action_buttons.items():
+            enabled = not self.busy and (name in ('Read device', 'Refresh ports') or self.snapshot is not None)
+            if name == 'Review & apply':
+                enabled = enabled and bool(count or channel_count)
+            button.configure(state='normal' if enabled else 'disabled')
+        self.location_state()
 
     def show_channels(self, channels):
         for widget in self.channel_rows.winfo_children():
@@ -155,6 +199,8 @@ class App:
                 Tooltip(entry, 'Channel name' if col == 2 else 'Channel key', HELP['channel_name' if col == 2 else 'channel_secret'])
                 self.channel_entries.append(entry)
             self.channel_vars[index] = (name, secret)
+            name.trace_add('write', lambda *_: self.edited())
+            secret.trace_add('write', lambda *_: self.edited())
         if not channels:
             ttk.Label(self.channel_rows, text='No successfully read channel slots. Read the device to populate this tab.').grid(row=1, column=0, columnspan=4, pady=15)
 
@@ -167,6 +213,9 @@ class App:
         gps_on = parse_input('gps', self.variables['gps'].get()) == 1
         for key in ('latitude', 'longitude'):
             self.entries[key].configure(state='disabled' if gps_on or key not in self.snapshot['settings'] else 'normal')
+        all_types = parse_input('manual_add_contacts', self.variables['manual_add_contacts'].get()) == 0
+        for key in ('auto_add_chat', 'auto_add_repeater', 'auto_add_room_server', 'auto_add_sensor'):
+            self.entries[key].configure(state='disabled' if all_types or key not in self.snapshot['settings'] else 'readonly')
 
     def selected_port(self):
         if not self.port.get():
@@ -216,6 +265,7 @@ class App:
         self.run(read_device(self.selected_port()), self.read_done, 'Reading settings, channels and contacts…')
 
     def show(self, snapshot):
+        self.loading = True
         self.snapshot = snapshot
         info = snapshot['device']
         self.identity.set(f"{snapshot['settings'].get('name', '?')} | {info.get('model', 'Unknown model')} | Firmware {info.get('ver', '?')} | {snapshot['port']}")
@@ -231,6 +281,9 @@ class App:
         self.details.delete('1.0', 'end')
         self.details.insert('1.0', json.dumps(snapshot, indent=2, default=str))
         self.details.configure(state='disabled')
+        self.loading = False
+        self.support_summary.set(f"{len(snapshot['settings'])} SETTINGS AVAILABLE   /   {len(snapshot.get('channels', []))} CHANNEL SLOTS   /   {len(snapshot.get('read_errors', {}))} READ WARNINGS")
+        self.edited()
 
     def read_done(self, snapshot):
         self.show(snapshot)
@@ -298,7 +351,7 @@ class App:
         if messagebox.askokcancel('Apply these changes?', f'{self.identity.get()}\n\n{review}\n\nWrite these settings and verify by rereading?'):
             def done(result):
                 self.show(result)
-                self.status.set('Verified: all requested values match the device. Apply report saved.')
+                self.status.set('Verified: requested values match. Apply report saved. Use Read device to refresh all channels and contacts.')
             self.run(apply_device(self.selected_port(), self.snapshot, delta, ROOT / 'reports', channel_delta), done, 'Writing settings and verifying…')
 
     def close(self):

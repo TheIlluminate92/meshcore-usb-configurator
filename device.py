@@ -3,12 +3,25 @@ import asyncio
 from datetime import datetime, timezone
 from pathlib import Path
 import json
+import struct
 from model import RADIO, COORDS, OTHER, AUTO, AUTO_BITS, FIELDS, validate, validate_channels, changes
 
 MAP = {'name': 'name', 'frequency': 'radio_freq', 'bandwidth': 'radio_bw',
        'spreading_factor': 'radio_sf', 'coding_rate': 'radio_cr',
        'tx_power': 'tx_power', 'latitude': 'adv_lat', 'longitude': 'adv_lon'}
 MAP.update({k: ('adv_loc_policy' if k == 'advert_location_policy' else k) for k in OTHER})
+
+def radio_packet(values, repeat=None):
+    packet = struct.pack('<BIIBB', 11, round(values['frequency'] * 1000),
+                         round(values['bandwidth'] * 1000), values['spreading_factor'], values['coding_rate'])
+    return packet if repeat is None else packet + bytes([int(repeat)])
+
+def coordinates_packet(values):
+    return struct.pack('<Biii', 14, round(values['latitude'] * 1e6), round(values['longitude'] * 1e6), 0)
+
+async def send_config(mc, packet):
+    from meshcore import EventType
+    return await mc.commands.send(packet, [EventType.OK, EventType.ERROR])
 
 def supported_value(key, value):
     try:
@@ -34,6 +47,9 @@ async def event(call, expected):
 async def basic(mc, port):
     info = await event(mc.commands.send_device_query(), 'DEVICE_INFO')
     own = await event(mc.commands.send_appstart(), 'SELF_INFO')
+    # The library exposes the signed firmware byte as unsigned.
+    if 128 <= own.get('tx_power', 0) <= 255:
+        own['tx_power'] -= 256
     snapshot = {'captured_at': datetime.now(timezone.utc).isoformat(), 'port': port,
             'device': info, 'self_info': own,
             'settings': {k: own[v] for k, v in MAP.items() if v in own}}
@@ -165,12 +181,12 @@ async def apply_device(port, baseline, desired, report_dir, channels=None):
             if 'name' in delta:
                 jobs.append(('name', lambda: mc.commands.set_name(merged['name'])))
             if set(RADIO) & delta.keys():
-                jobs.append(('radio', lambda: mc.commands.set_radio(*(merged[k] for k in RADIO),
-                            repeat=int(current['device']['repeat']) if current['device'].get('fw ver', 0) >= 9 else None)))
+                jobs.append(('radio', lambda: send_config(mc, radio_packet(merged,
+                            repeat=current['device']['repeat'] if current['device'].get('fw ver', 0) >= 9 else None))))
             if 'tx_power' in delta:
-                jobs.append(('tx_power', lambda: mc.commands.set_tx_power(merged['tx_power'])))
+                jobs.append(('tx_power', lambda: send_config(mc, struct.pack('<Bb', 12, merged['tx_power']))))
             if set(COORDS) & delta.keys():
-                jobs.append(('coordinates', lambda: mc.commands.set_coords(*(merged[k] for k in COORDS))))
+                jobs.append(('coordinates', lambda: send_config(mc, coordinates_packet(merged))))
             if set(OTHER) & delta.keys():
                 shared = dict(current['self_info'])
                 shared.update({MAP[k]: merged[k] for k in OTHER if k in merged})
@@ -228,6 +244,13 @@ async def apply_device(port, baseline, desired, report_dir, channels=None):
                     raise RuntimeError(f"Read-back mismatch in channel slot {channel['index']}")
                 after_channels[channel['index']] = actual
             after['channels'] = list(after_channels.values())
+            after['snapshot_scope'] = {
+                'kind': 'apply_verification',
+                'settings': 'Reread after applying',
+                'channels_reread': [c['index'] for c in channel_delta],
+                'other_channels': 'Retained from the previous read; not refreshed',
+                'contacts': 'Not included; use Read device for a fresh full snapshot',
+            }
             report['verified'] = True
             return after
         except Exception as exc:

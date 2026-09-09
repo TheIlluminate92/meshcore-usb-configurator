@@ -75,7 +75,7 @@ def help_label(parent, title, text):
     label = ttk.Label(frame, text=title, wraplength=240)
     label.pack(side='left')
     Tooltip(label, title, text)
-    button = ttk.Button(frame, text='?', width=2, takefocus=True)
+    button = ttk.Button(frame, text='?', width=2, takefocus=True, style='Help.TButton')
     button.pack(side='left', padx=(5, 0))
     hint = Tooltip(button, title, text)
     button.configure(command=hint.explain)
