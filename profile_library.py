@@ -45,9 +45,8 @@ class ProfileLibrary:
         ident = ident or str(uuid.uuid4())
         path = self.path(ident)
         self.folder.mkdir(parents=True, exist_ok=True)
-        temporary = path.with_suffix('.tmp')
-        temporary.write_text(json.dumps(data, indent=2), encoding='utf-8')
-        temporary.replace(path)
+        from storage import atomic_text
+        atomic_text(path,json.dumps(data, indent=2))
         return ident
 
     def archive(self, ident):

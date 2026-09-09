@@ -18,5 +18,7 @@ def load_preferences(path):
     except (OSError,ValueError):return {}
 
 def save_preferences(path,theme,geometry):
-    path=Path(path);path.parent.mkdir(parents=True,exist_ok=True)
-    tmp=path.with_suffix('.tmp');tmp.write_text(json.dumps({'theme':theme,'geometry':geometry}),encoding='utf-8');tmp.replace(path)
+    from storage import atomic_text
+    try:atomic_text(path,json.dumps({'theme':theme,'geometry':geometry}))
+    except OSError:return False
+    return True

@@ -100,7 +100,7 @@ def validate(settings, maximum_power=22):
             raise ValueError(f'{label} must be a number.')
         try:
             number = float(value)
-        except (ValueError, TypeError):
+        except (ValueError, TypeError, OverflowError):
             raise ValueError(f'{label} must be a number.') from None
         if key == 'tx_power':
             high = min(high, maximum_power)
@@ -114,7 +114,7 @@ def load_profile(path):
     if not isinstance(data, dict):
         raise ValueError('Profile must be a JSON object.')
     if 'schema_version' in data:
-        if data['schema_version'] not in (1, 2) or data.get('format') != 'meshcore-usb-profile':
+        if type(data['schema_version']) is not int or data['schema_version'] not in (1, 2) or data.get('format') != 'meshcore-usb-profile':
             raise ValueError('Unrecognized profile format or version.')
         units = data.get('units', {})
         expected = {'frequency': 'MHz', 'bandwidth': 'kHz', 'tx_power': 'dBm'}

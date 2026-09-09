@@ -1,5 +1,15 @@
 # Changelog
 
+## Thorough bug hunt — 0.5.1
+
+- Replaced direct report/snapshot writes with atomic, flushed saves; shared atomic saving also protects profiles/preferences and serializes in-process writers. Failed saves retain the previous complete file.
+- Preference-write errors no longer prevent closing. Theme callbacks are coalesced/cancelled during shutdown.
+- Read-back now rechecks public identity and every requested channel, including unchanged channels; cleanup errors retain the primary connection error and cleanup has bounded waits.
+- Update staging files are unique; staged digest is checked again before helper launch and after exit. Busy updates block parent shutdown; duplicate dialogs are prevented and failed downloads can be retried.
+- Real Windows helper testing exposed an unavailable PowerShell checksum cmdlet; replaced it with .NET hashing and deterministic UTF-8 logs.
+- Reject newer SQLite schema versions without rewriting them; reject boolean profile versions, oversized numeric input, malformed tokens and invalid asset metadata. Token errors never echo the credential.
+- Validation: 94 tests pass, plus the real disposable Windows helper test for waiting, replacement, restart, backup and data preservation. Packaged startup checked separately. No hardware writes. Authenticated GitHub end-to-end update, live BLE, multi-radio writes and power-cycle persistence remain unvalidated.
+
 ## Documentation and repository cleanup — 2026-09-09
 
 - Rewrote the README around the current portable app and simplified batch controls; removed obsolete button names, duplicated instructions and superseded test counts.

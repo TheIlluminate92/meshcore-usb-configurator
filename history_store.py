@@ -15,6 +15,8 @@ class HistoryStore:
     def __init__(self,path):
         self.path=Path(path);self.path.parent.mkdir(parents=True,exist_ok=True)
         with self.connect() as db:
+            if db.execute('PRAGMA user_version').fetchone()[0]>1:
+                raise ValueError('History was created by a newer app version. Open it with that version; the database was not changed.')
             db.executescript('''
             CREATE TABLE IF NOT EXISTS radios (
               identity TEXT PRIMARY KEY, name TEXT NOT NULL, model TEXT,

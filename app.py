@@ -26,6 +26,9 @@ class App:
         self.editor_port_choice = ''
         self.editor_transport = 'USB'
         self.batch_window = None
+        self.update_window = None
+        self.theme_job = None
+        self.closing = False
         from history_store import HistoryStore
         self.history = HistoryStore(ROOT / 'data' / 'history.sqlite3')
         self.pending = tk.StringVar(value='Read a radio to begin')
@@ -170,7 +173,7 @@ class App:
         self.status.trace_add('write',lambda *_:self.refresh_state_badge())
         ttk.Label(footer, textvariable=self.status, wraplength=1010, style='Status.TLabel').pack(anchor='w')
         root.bind('<Map>',lambda event:self.theme_new_window(event),add='+')
-        root.after_idle(self.change_theme)
+        self.queue_theme()
         root.protocol('WM_DELETE_WINDOW', self.close)
         self.poll_id = root.after(100, self.poll)
         self.scan()
@@ -186,15 +189,25 @@ class App:
         self.state_badge.set(badge)
 
     def theme_new_window(self,event):
-        if isinstance(event.widget,tk.Toplevel):self.root.after_idle(lambda:self.change_theme(save=False))
+        if isinstance(event.widget,tk.Toplevel):self.queue_theme()
+
+    def queue_theme(self):
+        if self.closing or self.theme_job is not None:return
+        def refresh():
+            self.theme_job=None
+            if not self.closing:self.change_theme(save=False)
+        self.theme_job=self.root.after_idle(refresh)
 
     def change_theme(self,save=True):
         apply_theme(self.root,self.theme_choice.get())
         if save:
             from preferences import save_preferences
-            save_preferences(ROOT/'preferences.json',self.theme_choice.get(),self.root.geometry())
+            if not save_preferences(ROOT/'preferences.json',self.theme_choice.get(),self.root.geometry()) and hasattr(self,'status'):
+                self.status.set('Appearance applied, but preferences could not be saved. Check folder access/free space.')
 
     def open_updates(self):
+        if self.update_window is not None:
+            self.update_window.window.lift();return
         if self.busy or (self.batch_window and self.batch_window.window.winfo_exists()):
             messagebox.showinfo('App updates','Finish the device operation and close the batch editor first.',parent=self.root);return
         from update_ui import UpdateWindow
@@ -519,6 +532,10 @@ class App:
             self.run(recorded_apply(), done, 'Writing settings and verifying…')
 
     def close(self):
+        if self.update_window is not None:
+            if self.update_window.busy:
+                messagebox.showinfo('Update in progress','Wait for the update check/download to finish before closing.',parent=self.root);return
+            self.update_window.close()
         if self.batch_window is not None:
             if self.batch_window.busy:
                 self.batch_window.close()
@@ -528,9 +545,13 @@ class App:
             messagebox.showinfo('Operation in progress', 'Wait for the device operation to finish before closing.')
         else:
             if not self.confirm_discard():return
+            self.closing=True
+            if self.theme_job is not None:
+                self.root.after_cancel(self.theme_job);self.theme_job=None
             from preferences import save_preferences
             save_preferences(ROOT/'preferences.json',self.theme_choice.get(),self.root.geometry())
             self.root.after_cancel(self.poll_id)
+            self.root.update_idletasks()
             self.root.destroy()
 
 if __name__ == '__main__':

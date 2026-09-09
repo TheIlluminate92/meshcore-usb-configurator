@@ -19,6 +19,6 @@ Read, edit, review, write, verify remain separate steps. Stop on batch write fai
 
 ## Current handoff
 
-Portable version 0.5.0 includes four equal-column settings pages, dark/light/system themes, checkbox batch selection, saved-profile application, comparison/history, naming defaults and update controls. User is testing the portable build; do not replace their running EXE or alter their data during documentation/maintenance work. The repository remains private until the user decides otherwise.
+Portable version 0.5.1 includes four equal-column settings pages, dark/light/system themes, checkbox batch selection, saved-profile application, comparison/history, naming defaults and update controls. User is testing the portable build; do not replace their running EXE or alter their data during documentation/maintenance work. The repository remains private until the user decides otherwise.
 
-The latest local validation is 81 passing tests plus packaged startup. Hardware and live-update gaps are tracked in VALIDATION.md. CHANGELOG.md retains historical bug notes; historical test counts are not the current suite count.
+The latest local validation is 94 passing tests, disposable Windows updater integration and packaged startup. Hardware and live-update gaps are tracked in VALIDATION.md. CHANGELOG.md retains historical bug notes; historical test counts are not the current suite count.

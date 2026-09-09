@@ -52,11 +52,11 @@ For a persistence check, restart a radio yourself, choose its current connection
 
 After you approve **Install & restart**, the app verifies the release asset's SHA-256 digest and replaces only the executable after exit. User Data stays intact. A previous executable and `update.log` are retained in `User Data/Updates`. If replacement fails, the existing EXE remains; consult the log. Update checks are separate from radio work and are blocked while device operations or batch work are active.
 
-A source commit is not itself an installable update. The release build must complete and publish the Windows asset. End-to-end private-release installation still needs live validation.
+A source commit is not itself an installable update. The release build must complete and publish the Windows asset. The disposable Windows replacement test passes, including exit waiting, restart, backup and data preservation. Authenticated GitHub download plus app installation still needs live validation.
 
 ## Validation and limitations
 
-The latest local suite passed **81 tests**, and the portable EXE passed its startup check. A prior read-only Heltec T114 check on firmware v1.17.1 returned **22 settings, 40 channel slots and zero optional read errors**; GPS interval was not reported.
+The latest local suite passed **94 tests**, and the portable EXE passed its startup check. A prior read-only Heltec T114 check on firmware v1.17.1 returned **22 settings, 40 channel slots and zero optional read errors**; GPS interval was not reported.
 
 Live Bluetooth configuration, real multi-radio writes, persistence after radio restart, and Seeed SenseCAP T1000-E magnetic USB compatibility remain unvalidated. See [VALIDATION.md](VALIDATION.md), [CHANGELOG.md](CHANGELOG.md), [SETTINGS_AUDIT.md](SETTINGS_AUDIT.md) and [FIRMWARE_MAP.md](FIRMWARE_MAP.md).
 

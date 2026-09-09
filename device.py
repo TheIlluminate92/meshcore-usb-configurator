@@ -56,9 +56,8 @@ def make_connection(port):
     return ClosingSerialConnection(port, 115200)
 
 def save_json(path, data):
-    path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, indent=2, default=lambda x: x.hex() if isinstance(x, bytes) else str(x)), encoding='utf-8')
+    from storage import atomic_text
+    atomic_text(path,json.dumps(data, indent=2, default=lambda x: x.hex() if isinstance(x, bytes) else str(x)))
 
 async def event(call, expected):
     reply = await asyncio.wait_for(call, 15)
@@ -123,12 +122,16 @@ async def operate(port, action):
             raise RuntimeError('No Companion response. Check the selected device, firmware connection mode, and other app connections.')
         return await action(mc)
     finally:
-        try:
-            await mc.disconnect()
-        finally:
-            # Also clean up a partially established connection that the
-            # connection manager did not yet mark as connected.
-            await connection.disconnect()
+        import sys
+        primary=sys.exception();cleanup_errors=[]
+        # Bound cleanup and always try both layers, including partial connects.
+        for disconnect in (mc.disconnect,connection.disconnect):
+            try:await asyncio.wait_for(disconnect(),10)
+            except Exception as exc:cleanup_errors.append(str(exc) or type(exc).__name__)
+        if cleanup_errors:
+            detail='Connection cleanup failed: '+'; '.join(cleanup_errors)
+            if primary is not None:primary.add_note(detail)
+            else:raise RuntimeError(detail+'. Reconnect and reread before another operation.')
 
 async def read_device(port):
     async def read(mc):
@@ -238,6 +241,8 @@ async def apply_device(port, baseline, desired, report_dir, channels=None):
                 save_json(report_path, report)
             after = await basic(mc, port)
             report['after'] = after
+            if after['self_info'].get('public_key') != current['self_info'].get('public_key'):
+                raise RuntimeError('Read-back identity mismatch. The radio could not be verified.')
             if set(OTHER) & delta.keys():
                 if any(after['self_info'].get(MAP[k]) != shared[MAP[k]] for k in OTHER):
                     raise RuntimeError('Read-back mismatch in shared contact/telemetry settings.')
@@ -261,7 +266,7 @@ async def apply_device(port, baseline, desired, report_dir, channels=None):
             if mismatch:
                 raise RuntimeError(f'Read-back mismatch in: {", ".join(mismatch)}')
             after_channels = dict(known_channels)
-            for channel in channel_delta:
+            for channel in validate_channels(channels or []):
                 actual = await read_channel(mc, channel['index'])
                 if actual != channel:
                     raise RuntimeError(f"Read-back mismatch in channel slot {channel['index']}")
@@ -270,7 +275,7 @@ async def apply_device(port, baseline, desired, report_dir, channels=None):
             after['snapshot_scope'] = {
                 'kind': 'apply_verification',
                 'settings': 'Reread after applying',
-                'channels_reread': [c['index'] for c in channel_delta],
+                'channels_reread': [c['index'] for c in validate_channels(channels or [])],
                 'other_channels': 'Retained from the previous read; not refreshed',
                 'contacts': 'Not included; use Read device for a fresh full snapshot',
             }

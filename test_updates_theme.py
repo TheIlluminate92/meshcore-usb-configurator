@@ -36,14 +36,16 @@ class UpdateTests(unittest.TestCase):
     def test_install_paths_and_encoded_helper(self):
         with tempfile.TemporaryDirectory() as folder:
             exe=Path(folder)/'! app.exe';staged=Path(folder)/'User Data'/'Updates'/'ready.exe'
+            staged.parent.mkdir(parents=True);staged.write_bytes(b'MZtest')
+            digest='sha256:'+hashlib.sha256(b'MZtest').hexdigest()
             with patch('subprocess.Popen') as launch:
-                updater.schedule_install(staged,exe,123)
+                updater.schedule_install(staged,exe,123,digest)
                 command=launch.call_args.args[0]
                 self.assertIn('-EncodedCommand',command)
                 import base64
                 script=base64.b64decode(command[-1]).decode('utf-16-le')
                 self.assertIn('[IO.File]::Replace',script)
-            with self.assertRaises(ValueError):updater.schedule_install(Path(folder)/'ready.exe',exe,123)
+            with self.assertRaises(ValueError):updater.schedule_install(Path(folder)/'ready.exe',exe,123,digest)
     def test_preferences_validate_and_round_trip(self):
         with tempfile.TemporaryDirectory() as folder:
             path=Path(folder)/'preferences.json';save_preferences(path,'Dark','1180x820+10+20')
