@@ -48,11 +48,11 @@ For a persistence check, restart a radio yourself, choose its current connection
 
 ## App updates
 
-**App updates** checks the latest published stable GitHub release. The repository is currently private: enter a GitHub token with **Contents: read** access to this repository. It stays in memory for that dialog and is never saved or bundled. A public repository can be checked without a token.
+**App updates** checks the latest published stable release from the public GitHub repository. No token or sign-in is required; the app does not read or send GitHub credentials.
 
 After you approve **Install & restart**, the app verifies the release asset's SHA-256 digest and replaces only the executable after exit. User Data stays intact. A previous executable and `update.log` are retained in `User Data/Updates`. If replacement fails, the existing EXE remains; consult the log. Update checks are separate from radio work and are blocked while device operations or batch work are active.
 
-A source commit is not itself an installable update. The release build must complete and publish the Windows asset. The disposable Windows replacement test passes, including exit waiting, restart, backup and data preservation. Authenticated GitHub download plus app installation still needs live validation.
+A source commit is not itself an installable update. The release build must complete and publish the Windows asset. The disposable Windows replacement test passes, including exit waiting, restart, backup and data preservation. Public GitHub download plus app installation is validated separately from the local replacement helper.
 
 ## Validation and limitations
 

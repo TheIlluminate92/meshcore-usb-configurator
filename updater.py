@@ -21,23 +21,20 @@ class SafeRedirect(urllib.request.HTTPRedirectHandler):
         if result and parsed.hostname!='api.github.com':result.remove_header('Authorization')
         return result
 
-def request(url, token='', binary=False):
-    token=token.strip()
-    if token and not re.fullmatch(r'[A-Za-z0-9_]+',token):raise ValueError('GitHub token contains invalid characters. Paste the token only.')
+def request(url, binary=False):
     headers={'Accept':'application/octet-stream' if binary else 'application/vnd.github+json','User-Agent':'MeshCore-Configurator','X-GitHub-Api-Version':'2022-11-28'}
-    if token:headers['Authorization']='Bearer '+token.strip()
     return urllib.request.build_opener(SafeRedirect()).open(urllib.request.Request(url,headers=headers),timeout=30)
 
 def version(value):
     if not re.fullmatch(r'v?\d+\.\d+\.\d+',value):raise ValueError('Unsupported release version.')
     return tuple(map(int,value.lstrip('v').split('.')))
 
-def check(token=''):
+def check():
     try:
-        with request(API+'/releases/latest',token) as response:release=json.load(response)
+        with request(API+'/releases/latest') as response:release=json.load(response)
     except urllib.error.HTTPError as exc:
-        if exc.code in (401,403,404):
-            raise ValueError('No accessible release. This private repository needs a GitHub token with Contents: read access, and a published release.') from None
+        if exc.code==404:raise ValueError('No published release is available yet. Try again after the release build finishes.') from None
+        if exc.code in (403,429):raise ValueError('GitHub temporarily limited update checks. Please try again later.') from None
         raise ValueError('GitHub update check failed. Try again later.') from None
     if release.get('draft') or release.get('prerelease'):raise ValueError('Not a stable published release.')
     if version(release['tag_name'])<=version(VERSION):return None
@@ -46,12 +43,12 @@ def check(token=''):
     if type(asset.get('id')) is not int or asset['id']<=0 or type(asset.get('size')) is not int or not 0<asset['size']<=150*1024*1024:raise ValueError('Invalid update asset.')
     return {'version':release['tag_name'],'asset':asset}
 
-def download(release,folder,token=''):
+def download(release,folder):
     asset=release['asset'];folder=Path(folder);folder.mkdir(parents=True,exist_ok=True)
     ident=uuid.uuid4().hex
     path=folder/('download-'+ident+'.tmp');digest=hashlib.sha256();total=0
     try:
-        with request(API+'/releases/assets/'+str(asset['id']),token,True) as source,path.open('wb') as out:
+        with request(API+'/releases/assets/'+str(asset['id']),binary=True) as source,path.open('wb') as out:
             while chunk:=source.read(1024*1024):
                 total+=len(chunk)
                 if total>asset['size']:raise ValueError('Update exceeds its expected size.')

@@ -55,7 +55,7 @@ class UpdaterFaults(unittest.TestCase):
     def test_downloads_have_independent_staging_files(self):
         data=b'MZverified';asset={'id':12,'size':len(data),'digest':'sha256:'+hashlib.sha256(data).hexdigest()}
         with tempfile.TemporaryDirectory() as folder:
-            with patch('updater.request',side_effect=lambda *args:io.BytesIO(data)):
+            with patch('updater.request',side_effect=lambda *args,**kwargs:io.BytesIO(data)):
                 first=updater.download({'asset':asset},folder);second=updater.download({'asset':asset},folder)
             self.assertNotEqual(first,second);self.assertEqual(first.read_bytes(),second.read_bytes())
     def test_tampered_staging_never_starts_helper(self):
@@ -64,9 +64,11 @@ class UpdaterFaults(unittest.TestCase):
             with patch('subprocess.Popen') as launch:
                 with self.assertRaisesRegex(ValueError,'changed after'):updater.schedule_install(staged,Path(folder)/'app.exe',123,'sha256:'+hashlib.sha256(b'MZoriginal').hexdigest())
                 launch.assert_not_called()
-    def test_invalid_token_error_does_not_echo_secret(self):
-        with self.assertRaises(ValueError) as caught:updater.request(updater.API,'secret\nprivate')
-        self.assertNotIn('secret',str(caught.exception));self.assertNotIn('private',str(caught.exception))
+    def test_requests_never_send_credentials(self):
+        with patch('urllib.request.build_opener') as builder:
+            updater.request(updater.API)
+            request=builder.return_value.open.call_args.args[0]
+            self.assertIsNone(request.get_header('Authorization'))
     def test_truncated_download_keeps_prior_ready_files(self):
         with tempfile.TemporaryDirectory() as folder:
             previous=Path(folder)/'ready.exe';previous.write_bytes(b'MZprevious')

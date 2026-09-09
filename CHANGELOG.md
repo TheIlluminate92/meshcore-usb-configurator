@@ -1,5 +1,11 @@
 # Changelog
 
+## Public repository updates — 0.5.2
+
+- Removed the updater token field, environment-token lookup and authorization headers. Public release checks and downloads require no sign-in.
+- Updated missing-release/rate-limit messages and reduced the dialog height.
+- Validation: 94 tests pass; anonymous public release lookup and executable download passed SHA-256 verification. Packaged startup passed.
+
 ## Thorough bug hunt — 0.5.1
 
 - Replaced direct report/snapshot writes with atomic, flushed saves; shared atomic saving also protects profiles/preferences and serializes in-process writers. Failed saves retain the previous complete file.
