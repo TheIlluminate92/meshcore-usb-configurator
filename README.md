@@ -1,4 +1,4 @@
-# MeshCore USB Configurator — first version
+# MeshCore USB Configurator
 
 Double-click **Start Configurator.cmd** on this Windows laptop. Close the browser's serial connection first. Select the USB COM port, click **Read device**, and confirm the displayed name, model and firmware.
 
@@ -8,11 +8,16 @@ Every read saves a JSON snapshot under `snapshots`. Optional read errors are rec
 
 - Serial port enumeration; protocol identification after selecting a port.
 - Read device/self information, custom variables, contacts and channels (up to 64 reported slots).
-- Edit name, frequency, bandwidth, spreading factor, coding rate, TX power and coordinates when returned by the device.
+- 23 setting controls across Device & Radio, Location & GPS, Contact Discovery and Telemetry tabs. These include name, radio parameters, fixed coordinates, location sharing, GPS controls, contact discovery mode and type filters, replacement policy, discovery reach, telemetry permissions, extra acknowledgements and path-hash size.
+- Edit channel names and explicit 16-byte keys by numbered slot; verify both after writing. Keys are hidden in the editor.
 - Versioned JSON profiles and import of the two supplied browser export structures.
 - Snapshot export and per-apply verification reports.
 
-Channels, contacts, telemetry and custom settings are currently read-only. No firmware flashing, private-key import/export, direct flash-file editing, or batch-write UI is included. Profile import intentionally imports only the eight implemented settings. It does not restore an entire browser backup or identity.
+Controls are enabled only for recognized values successfully read from the device. GPS interval is conditional on the device reporting it. Fixed-coordinate controls are disabled while GPS is enabled. Unknown custom variables, contact records and browser-specific metadata remain read-only. Firmware flashing, private-key changes, direct flash-file editing and batch writes are not included.
+
+Profile version 2 includes supported settings and optional channel slots; version 1 remains readable. Browser import maps radio, location, other settings, auto-add settings and channels. It explicitly reports skipped fields/metadata and requires review of channel order. Loading an export never restores identity or writes the device.
+
+On the T114 bench unit, the expanded reader retrieved 22 supported settings and 40 channel slots without optional read errors. Expanded hardware writes still require validation.
 
 ## Architecture and units
 
@@ -24,7 +29,7 @@ This first implementation uses known Companion commands and fields that are pres
 
 Install Python 3.12 with Tcl/Tk and the Python launcher. Download or clone this repository, run **Setup Windows.cmd** once, then **Start Configurator.cmd**. Setup creates a local virtual environment and installs `requirements.txt`. The launcher prefers that environment. The original development computer can also use its bundled runtime and ignored local dependencies; these are not shipped through GitHub.
 
-Run tests with `.venv\Scripts\python.exe -m unittest -v test_configurator test_serial_cleanup`. GitHub Actions runs the same tests on Windows. Fixtures are synthetic and do not require the private exports or a physical radio.
+Run tests with `.venv\Scripts\python.exe -m unittest discover -v`. GitHub Actions runs the same tests on Windows. Fixtures are synthetic and do not require the private exports or a physical radio.
 
 ## Local reference exports
 

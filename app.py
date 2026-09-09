@@ -7,7 +7,7 @@ import threading
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import json
-from model import FIELDS, validate, load_profile, profile, changes
+from model import FIELDS, CHOICES, OTHER, AUTO, validate, validate_channels, load_document, profile, changes, display, parse_input
 from device import serial_ports, read_device, apply_device, save_json
 
 ROOT = Path(__file__).resolve().parent
@@ -16,7 +16,7 @@ class App:
     def __init__(self, root):
         self.root, self.snapshot, self.busy = root, None, False
         self.results = queue.Queue()
-        root.title('MeshCore USB Configurator')
+        root.title('MeshCore USB Configurator — Expanded settings')
         root.geometry('1000x740')
         root.minsize(850, 650)
         style = ttk.Style()
@@ -40,29 +40,58 @@ class App:
         ttk.Label(outer, textvariable=self.identity, wraplength=930).pack(anchor='w', pady=12)
         notebook = ttk.Notebook(outer)
         notebook.pack(fill='both', expand=True)
-        editor = ttk.Frame(notebook, padding=12)
-        notebook.add(editor, text='Settings & profiles')
+        self.variables, self.entries, self.current = {}, {}, {}
+        groups = {
+            'Device & radio': ('name', 'frequency', 'bandwidth', 'spreading_factor', 'coding_rate', 'tx_power', 'path_hash_mode', 'multi_acks'),
+            'Location & GPS': ('gps', 'gps_interval', 'latitude', 'longitude', 'advert_location_policy'),
+            'Contact discovery': ('manual_add_contacts',) + AUTO,
+            'Telemetry': ('telemetry_mode_base', 'telemetry_mode_loc', 'telemetry_mode_env'),
+        }
+        notes = {
+            'Device & radio': 'Radio values must match your network. Repeat mode is preserved. Extra acknowledgements increase radio traffic; the editor limits these to 0–3.',
+            'Location & GPS': 'Fixed coordinates require GPS to be off. GPS options depend on the hardware and firmware. Location sharing in adverts and telemetry access are separate settings.',
+            'Contact discovery': '“Automatically add all types” overrides the individual type filters. Use selected types/manual mode to apply them. With all type filters off, contacts are added manually. The hop limit still applies.',
+            'Telemetry': '“Allowed contacts only” uses each contact’s telemetry permission flags. Allowing location telemetry is separate from including location in adverts.',
+        }
+        for title, keys in groups.items():
+            editor = ttk.Frame(notebook, padding=12)
+            notebook.add(editor, text=title)
+            for column, label in enumerate(('Setting', 'Device value', 'Profile value')):
+                ttk.Label(editor, text=label, font=('Segoe UI', 10, 'bold')).grid(row=0, column=column, sticky='w')
+            for index, key in enumerate(keys, 1):
+                ttk.Label(editor, text=FIELDS[key][0]).grid(row=index, column=0, sticky='w', padx=(0, 16), pady=8)
+                current = tk.StringVar(value='Not read')
+                ttk.Label(editor, textvariable=current, width=30).grid(row=index, column=1, sticky='w')
+                variable = tk.StringVar()
+                if key in CHOICES:
+                    entry = ttk.Combobox(editor, textvariable=variable, values=list(CHOICES[key].values()), width=30, state='disabled')
+                else:
+                    entry = ttk.Entry(editor, textvariable=variable, width=30, state='disabled')
+                entry.grid(row=index, column=2, sticky='ew')
+                self.variables[key], self.entries[key], self.current[key] = variable, entry, current
+            editor.columnconfigure(2, weight=1)
+            ttk.Label(editor, text=notes[title], wraplength=890).grid(row=len(keys)+1, column=0, columnspan=3, sticky='w', pady=15)
+        self.channel_page = ttk.Frame(notebook, padding=12)
+        notebook.add(self.channel_page, text='Channels')
+        ttk.Label(self.channel_page, text='Edit existing numbered slots. Keys are hexadecimal and hidden. Empty name with a zero key clears a slot.\nOnly changed slots are written. Browser exports map channels by list order; review the slot assignments.', wraplength=890).pack(anchor='w', pady=(0, 10))
+        self.channel_canvas = tk.Canvas(self.channel_page, highlightthickness=0)
+        scrollbar = ttk.Scrollbar(self.channel_page, orient='vertical', command=self.channel_canvas.yview)
+        scrollbar.pack(side='right', fill='y')
+        self.channel_canvas.pack(fill='both', expand=True)
+        self.channel_canvas.configure(yscrollcommand=scrollbar.set)
+        self.channel_rows = ttk.Frame(self.channel_canvas)
+        window = self.channel_canvas.create_window((0, 0), window=self.channel_rows, anchor='nw')
+        self.channel_canvas.bind('<Configure>', lambda e: self.channel_canvas.itemconfigure(window, width=e.width))
+        self.channel_rows.bind('<Configure>', lambda e: self.channel_canvas.configure(scrollregion=self.channel_canvas.bbox('all')))
+        self.channel_vars, self.channel_entries = {}, []
+        self.variables['gps'].trace_add('write', lambda *_: self.location_state())
         self.details = tk.Text(notebook, wrap='none', font=('Consolas', 10))
         notebook.add(self.details, text='Reported data (read only)')
-        self.variables, self.entries, self.current = {}, {}, {}
-        ttk.Label(editor, text='Setting', font=('Segoe UI', 10, 'bold')).grid(row=0, column=0, sticky='w')
-        ttk.Label(editor, text='Device value', font=('Segoe UI', 10, 'bold')).grid(row=0, column=1, sticky='w')
-        ttk.Label(editor, text='Profile value', font=('Segoe UI', 10, 'bold')).grid(row=0, column=2, sticky='w')
-        for index, (key, spec) in enumerate(FIELDS.items(), 1):
-            ttk.Label(editor, text=spec[0]).grid(row=index, column=0, sticky='w', padx=(0, 30), pady=8)
-            current = tk.StringVar(value='—')
-            ttk.Label(editor, textvariable=current, width=24).grid(row=index, column=1, sticky='w')
-            variable = tk.StringVar()
-            entry = ttk.Entry(editor, textvariable=variable, width=30, state='disabled')
-            entry.grid(row=index, column=2, sticky='ew')
-            self.variables[key], self.entries[key], self.current[key] = variable, entry, current
-        editor.columnconfigure(2, weight=1)
-        ttk.Label(editor, text='Only implemented, reported options are editable. Radio values must match your local network.\nChannels, contacts and other settings are snapshot data in this first version.', wraplength=850).grid(row=9, column=0, columnspan=3, sticky='w', pady=12)
         actions = ttk.Frame(outer)
         actions.pack(fill='x', pady=12)
         self.button(actions, 'Load JSON profile', self.load)
         self.button(actions, 'Save JSON profile', self.save)
-        self.button(actions, 'Save full snapshot', self.save_snapshot)
+        self.button(actions, 'Save device snapshot', self.save_snapshot)
         self.button(actions, 'Review & apply', self.apply)
         self.status = tk.StringVar(value='Ready. No configuration has been written.')
         ttk.Label(outer, textvariable=self.status, wraplength=930).pack(anchor='w')
@@ -96,6 +125,36 @@ class App:
             entry.configure(state='disabled')
             self.current[key].set('—')
             self.variables[key].set('')
+        self.show_channels([])
+
+    def show_channels(self, channels):
+        for widget in self.channel_rows.winfo_children():
+            widget.destroy()
+        self.channel_vars, self.channel_entries = {}, []
+        for col, label in enumerate(('Slot', 'Device channel', 'Profile channel name', 'Profile key (hidden)')):
+            ttk.Label(self.channel_rows, text=label).grid(row=0, column=col, sticky='w', padx=5)
+        for row, channel in enumerate(channels, 1):
+            index = channel['index']
+            ttk.Label(self.channel_rows, text=str(index)).grid(row=row, column=0, padx=5, pady=7)
+            ttk.Label(self.channel_rows, text=channel['name'] or '(empty)', width=22).grid(row=row, column=1, sticky='w')
+            name, secret = tk.StringVar(value=channel['name']), tk.StringVar(value=channel['secret'])
+            for col, variable in ((2, name), (3, secret)):
+                entry = ttk.Entry(self.channel_rows, textvariable=variable, width=28, show='*' if col == 3 else '')
+                entry.grid(row=row, column=col, padx=5, sticky='ew')
+                self.channel_entries.append(entry)
+            self.channel_vars[index] = (name, secret)
+        if not channels:
+            ttk.Label(self.channel_rows, text='No successfully read channel slots. Read the device to populate this tab.').grid(row=1, column=0, columnspan=4, pady=15)
+
+    def desired_channels(self):
+        return validate_channels([{'index': i, 'name': n.get(), 'secret': s.get()} for i, (n, s) in self.channel_vars.items()])
+
+    def location_state(self):
+        if self.snapshot is None or self.busy:
+            return
+        gps_on = parse_input('gps', self.variables['gps'].get()) == 1
+        for key in ('latitude', 'longitude'):
+            self.entries[key].configure(state='disabled' if gps_on or key not in self.snapshot['settings'] else 'normal')
 
     def selected_port(self):
         if not self.port.get():
@@ -108,6 +167,8 @@ class App:
             b.configure(state='disabled')
         self.port_box.configure(state='disabled')
         for e in self.entries.values():
+            e.configure(state='disabled')
+        for e in self.channel_entries:
             e.configure(state='disabled')
         self.status.set(label)
         def worker():
@@ -148,10 +209,12 @@ class App:
         self.identity.set(f"{snapshot['settings'].get('name', '?')} | {info.get('model', 'Unknown model')} | Firmware {info.get('ver', '?')} | {snapshot['port']}")
         for key, entry in self.entries.items():
             supported = key in snapshot['settings']
-            value = str(snapshot['settings'].get(key, ''))
+            value = display(key, snapshot['settings'][key]) if supported else ''
             self.variables[key].set(value)
             self.current[key].set(value if supported else 'Not reported')
-            entry.configure(state='normal' if supported else 'disabled')
+            entry.configure(state=('readonly' if key in CHOICES else 'normal') if supported else 'disabled')
+        self.show_channels(snapshot.get('channels', []))
+        self.location_state()
         self.details.configure(state='normal')
         self.details.delete('1.0', 'end')
         self.details.insert('1.0', json.dumps(snapshot, indent=2, default=str))
@@ -167,7 +230,7 @@ class App:
     def desired(self):
         if self.snapshot is None:
             raise ValueError('Read the connected device first.')
-        return validate({k: self.variables[k].get() for k in self.snapshot['settings']},
+        return validate({k: parse_input(k, self.variables[k].get()) for k in self.snapshot['settings']},
                         self.snapshot['self_info'].get('max_tx_power', 0))
 
     def load(self):
@@ -175,16 +238,27 @@ class App:
             raise ValueError('Read the device first so supported options can be checked.')
         path = filedialog.askopenfilename(filetypes=[('JSON profiles', '*.json')])
         if path:
-            settings = load_profile(Path(path))
-            if set(settings) - self.snapshot['settings'].keys():
-                raise ValueError('Profile contains options not reported by this device.')
+            settings, channels, warnings = load_document(Path(path))
+            unsupported = set(settings) - self.snapshot['settings'].keys()
+            if unsupported:
+                warnings.append('Unavailable settings skipped: ' + ', '.join(FIELDS[k][0] for k in sorted(unsupported)))
+                settings = {k: v for k, v in settings.items() if k not in unsupported}
+            unavailable_slots = [c['index'] for c in channels if c['index'] not in self.channel_vars]
+            if unavailable_slots:
+                raise ValueError(f'Channel slots not reported by this device: {unavailable_slots}')
             validate(settings, self.snapshot['self_info'].get('max_tx_power', 0))
             for key, value in settings.items():
-                self.variables[key].set(str(value))
+                self.variables[key].set(display(key, value))
+            for c in channels:
+                n, s = self.channel_vars[c['index']]
+                n.set(c['name'])
+                s.set(c['secret'])
             self.status.set('Profile loaded into editor. Nothing written. Review device and profile values before applying.')
+            if warnings:
+                messagebox.showinfo('Profile import notes', '\n\n'.join(warnings))
 
     def save(self):
-        data = profile(self.desired())
+        data = profile(self.desired(), self.desired_channels())
         path = filedialog.asksaveasfilename(defaultextension='.json', filetypes=[('JSON profiles', '*.json')])
         if path:
             save_json(path, data)
@@ -200,15 +274,20 @@ class App:
     def apply(self):
         desired = self.desired()
         delta = changes(self.snapshot['settings'], desired)
-        if not delta:
+        previous = {c['index']: c for c in self.snapshot.get('channels', [])}
+        channel_delta = [c for c in self.desired_channels() if c != previous[c['index']]]
+        if not delta and not channel_delta:
             self.status.set('No changes to apply.')
             return
-        review = '\n'.join(f'{FIELDS[k][0]}: {self.snapshot["settings"][k]} → {v}' for k, v in delta.items())
+        review = '\n'.join(f'{FIELDS[k][0]}: {display(k, self.snapshot["settings"][k])} → {display(k, v)}' for k, v in delta.items())
+        for c in channel_delta:
+            key_changed = c['secret'] != previous[c['index']]['secret']
+            review += f"\nChannel {c['index']}: {previous[c['index']]['name'] or '(empty)'} → {c['name'] or '(empty)'}" + (' (key changes)' if key_changed else '')
         if messagebox.askokcancel('Apply these changes?', f'{self.identity.get()}\n\n{review}\n\nWrite these settings and verify by rereading?'):
             def done(result):
                 self.show(result)
                 self.status.set('Verified: all requested values match the device. Apply report saved.')
-            self.run(apply_device(self.selected_port(), self.snapshot, desired, ROOT / 'reports'), done, 'Writing settings and verifying…')
+            self.run(apply_device(self.selected_port(), self.snapshot, delta, ROOT / 'reports', channel_delta), done, 'Writing settings and verifying…')
 
     def close(self):
         if self.busy:

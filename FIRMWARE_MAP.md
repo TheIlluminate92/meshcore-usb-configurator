@@ -12,4 +12,4 @@ The connected build reported v1.17.1-d929643; the release tag is the baseline, n
 | Channels | GET_CHANNEL (31), SET_CHANNEL (32) | Slot, name and 16-byte secret; do not infer retention support from browser JSON. |
 | Auto-add | GET_AUTOADD_CONFIG (59), SET_AUTOADD_CONFIG (58) | Decode flags before exposing controls; maximum hop value is capped at 64. |
 
-These are implementation targets, not a claim that all editor controls exist today. Private identity is excluded from fleet profiles. Both original exports stay local.
+These groups now have editor controls and read-back checks. GPS controls use reported custom variables; path-hash mode uses its dedicated command. Firmware-only preferences and browser metadata are not automatically editable. Private identity is excluded from fleet profiles. Both original exports stay local.

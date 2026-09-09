@@ -3,11 +3,18 @@ import asyncio
 from datetime import datetime, timezone
 from pathlib import Path
 import json
-from model import RADIO, COORDS, validate, changes
+from model import RADIO, COORDS, OTHER, AUTO, AUTO_BITS, FIELDS, validate, validate_channels, changes
 
 MAP = {'name': 'name', 'frequency': 'radio_freq', 'bandwidth': 'radio_bw',
        'spreading_factor': 'radio_sf', 'coding_rate': 'radio_cr',
        'tx_power': 'tx_power', 'latitude': 'adv_lat', 'longitude': 'adv_lon'}
+MAP.update({k: ('adv_loc_policy' if k == 'advert_location_policy' else k) for k in OTHER})
+
+def supported_value(key, value):
+    try:
+        return validate({key: value})[key]
+    except ValueError:
+        return None
 
 def serial_ports():
     from serial.tools import list_ports
@@ -27,9 +34,39 @@ async def event(call, expected):
 async def basic(mc, port):
     info = await event(mc.commands.send_device_query(), 'DEVICE_INFO')
     own = await event(mc.commands.send_appstart(), 'SELF_INFO')
-    return {'captured_at': datetime.now(timezone.utc).isoformat(), 'port': port,
+    snapshot = {'captured_at': datetime.now(timezone.utc).isoformat(), 'port': port,
             'device': info, 'self_info': own,
             'settings': {k: own[v] for k, v in MAP.items() if v in own}}
+    # Normalize booleans and keep out-of-range/new enum values read-only.
+    snapshot['settings'] = {k: supported_value(k, v) for k, v in snapshot['settings'].items()}
+    snapshot['settings'] = {k: v for k, v in snapshot['settings'].items() if v is not None}
+    snapshot['read_errors'] = {}
+    for section, method, expected in [('custom_vars', mc.commands.get_custom_vars, 'CUSTOM_VARS'),
+                                     ('auto_add', mc.commands.get_autoadd_config, 'AUTOADD_CONFIG')]:
+        try:
+            snapshot[section] = await event(method(), expected)
+        except Exception as exc:
+            snapshot['read_errors'][section] = str(exc)
+    custom = snapshot.get('custom_vars', {})
+    for k in ('gps', 'gps_interval'):
+        if k in custom and supported_value(k, custom[k]) is not None:
+            snapshot['settings'][k] = supported_value(k, custom[k])
+    auto = snapshot.get('auto_add', {})
+    if 'config' in auto:
+        snapshot['settings'].update({k: int(bool(auto['config'] & bit)) for k, bit in AUTO_BITS.items()})
+    if 'max_hops' in auto and supported_value('auto_add_max_hops', auto['max_hops']) is not None:
+        snapshot['settings']['auto_add_max_hops'] = auto['max_hops']
+    if 'path_hash_mode' in info and supported_value('path_hash_mode', info['path_hash_mode']) is not None:
+        snapshot['settings']['path_hash_mode'] = info['path_hash_mode']
+    return snapshot
+
+async def read_channel(mc, index):
+    payload = await event(mc.commands.get_channel(index), 'CHANNEL_INFO')
+    if payload.get('channel_idx') != index:
+        raise RuntimeError('Channel reply has an unexpected slot number.')
+    secret = payload['channel_secret']
+    return {'index': index, 'name': payload['channel_name'],
+            'secret': secret.hex() if isinstance(secret, bytes) else secret}
 
 async def operate(port, action):
     from meshcore import MeshCore
@@ -57,9 +94,7 @@ async def operate(port, action):
 async def read_device(port):
     async def read(mc):
         snapshot = await basic(mc, port)
-        snapshot['read_errors'] = {}
-        for name, method, expected in [('custom_vars', mc.commands.get_custom_vars, 'CUSTOM_VARS'),
-                                        ('contacts', mc.commands.get_contacts, 'CONTACTS')]:
+        for name, method, expected in [('contacts', mc.commands.get_contacts, 'CONTACTS')]:
             try:
                 snapshot[name] = await event(method(), expected)
             except Exception as exc:
@@ -68,21 +103,24 @@ async def read_device(port):
         count = snapshot['device'].get('max_channels', 0)
         for index in range(min(count, 64)):
             try:
-                payload = await event(mc.commands.get_channel(index), 'CHANNEL_INFO')
-                snapshot['channels'].append({'index': index, **payload})
+                snapshot['channels'].append(await read_channel(mc, index))
             except Exception as exc:
                 snapshot['read_errors'][f'channel_{index}'] = str(exc)
                 break
         return snapshot
     return await operate(port, read)
 
-async def apply_device(port, baseline, desired, report_dir):
+async def apply_device(port, baseline, desired, report_dir, channels=None):
     """One device per transaction; no retries or rollback after uncertain writes."""
     async def apply(mc):
         current = await basic(mc, port)
         if current['self_info']['public_key'] != baseline['self_info']['public_key']:
             raise ValueError('A different device is connected. Read it before applying.')
-        if changes(current['settings'], baseline['settings']):
+        stale_fields = dict(baseline['settings'])
+        if current['settings'].get('gps') == 1:
+            for k in COORDS:
+                stale_fields.pop(k, None)
+        if changes(current['settings'], stale_fields):
             raise ValueError('Device settings changed since the last read. Read and review again.')
         values = validate(desired, current['self_info'].get('max_tx_power', 0))
         if set(values) - set(current['settings']):
@@ -95,15 +133,35 @@ async def apply_device(port, baseline, desired, report_dir):
             if current['device']['repeat'] != baseline['device'].get('repeat'):
                 raise ValueError('Repeat mode changed since the last read. Read and review again.')
         merged = current['settings'] | values
+        if set(COORDS) & delta.keys() and merged.get('gps') == 1:
+            raise ValueError('Turn GPS off before setting a fixed location, or leave coordinates unchanged.')
         for group in (RADIO, COORDS):
             if set(group) & delta.keys() and not set(group) <= merged.keys():
                 raise ValueError('Device did not report all fields needed by this command.')
+        if set(OTHER) & delta.keys() and not all(MAP[k] in current['self_info'] for k in OTHER):
+            raise ValueError('Device did not return the complete shared contact/telemetry settings group.')
+        channel_delta = []
+        known_channels = {c['index']: c for c in baseline.get('channels', [])}
+        for requested in validate_channels(channels or []):
+            index = requested['index']
+            if index not in known_channels:
+                raise ValueError(f'Channel slot {index} was not read successfully.')
+            actual = await read_channel(mc, index)
+            if actual != known_channels[index]:
+                raise ValueError(f'Channel slot {index} changed since the last read.')
+            if actual != requested:
+                channel_delta.append(requested)
         report = {'before': current, 'requested': delta, 'acknowledged': [], 'verified': False}
+        report['channels_before'] = list(known_channels.values())
+        report['channels_requested'] = channel_delta
         stamp = datetime.now().strftime('%Y%m%d-%H%M%S-%f')
         report_path = Path(report_dir) / f'apply-{port}-{stamp}.json'
         save_json(report_path, report)
         try:
             jobs = []
+            for key in ('gps', 'gps_interval'):
+                if key in delta:
+                    jobs.append((key, lambda k=key: mc.commands.set_custom_var(k, str(merged[k]))))
             if 'name' in delta:
                 jobs.append(('name', lambda: mc.commands.set_name(merged['name'])))
             if set(RADIO) & delta.keys():
@@ -113,18 +171,63 @@ async def apply_device(port, baseline, desired, report_dir):
                 jobs.append(('tx_power', lambda: mc.commands.set_tx_power(merged['tx_power'])))
             if set(COORDS) & delta.keys():
                 jobs.append(('coordinates', lambda: mc.commands.set_coords(*(merged[k] for k in COORDS))))
+            if set(OTHER) & delta.keys():
+                shared = dict(current['self_info'])
+                shared.update({MAP[k]: merged[k] for k in OTHER if k in merged})
+                jobs.append(('contact/telemetry settings', lambda: mc.commands.set_other_params_from_infos(shared)))
+            if set(AUTO) & delta.keys():
+                # Retain unrecognized flag bits, and send max_hops only if read.
+                from meshcore import EventType
+                flags = current['auto_add']['config']
+                for key, bit in AUTO_BITS.items():
+                    flags = (flags | bit) if merged[key] else (flags & ~bit)
+                packet = bytes([58, flags])
+                if 'auto_add_max_hops' in merged:
+                    packet += bytes([merged['auto_add_max_hops']])
+                jobs.append(('contact discovery filters', lambda: mc.commands.send(packet, [EventType.OK, EventType.ERROR])))
+            if 'path_hash_mode' in delta:
+                jobs.append(('path hash mode', lambda: mc.commands.set_path_hash_mode(merged['path_hash_mode'])))
+            for channel in channel_delta:
+                from meshcore import EventType
+                # Send the explicit secret, including for # channels; the library
+                # convenience setter otherwise silently derives a different key.
+                wire = bytes([32, channel['index']]) + channel['name'].encode('utf-8').ljust(32, b'\0') + bytes.fromhex(channel['secret'])
+                jobs.append((f"channel {channel['index']}", lambda p=wire: mc.commands.send(p, [EventType.OK, EventType.ERROR])))
             for label, command in jobs:
                 await event(command(), 'OK')
                 report['acknowledged'].append(label)
                 save_json(report_path, report)
             after = await basic(mc, port)
             report['after'] = after
+            if set(OTHER) & delta.keys():
+                if any(after['self_info'].get(MAP[k]) != shared[MAP[k]] for k in OTHER):
+                    raise RuntimeError('Read-back mismatch in shared contact/telemetry settings.')
+            if set(AUTO) & delta.keys():
+                if after.get('auto_add', {}).get('config') != flags:
+                    raise RuntimeError('Read-back mismatch in contact discovery flags.')
+                if 'auto_add_max_hops' in merged and after.get('auto_add', {}).get('max_hops') != merged['auto_add_max_hops']:
+                    raise RuntimeError('Read-back mismatch in contact discovery reach.')
             if radio_changed and current['device'].get('fw ver', 0) >= 9:
                 if after['device'].get('repeat') != current['device']['repeat']:
                     raise RuntimeError('Read-back mismatch: repeat mode was not preserved.')
-            mismatch = changes(after['settings'], values)
+            expected = dict(values)
+            for group in (RADIO, COORDS):
+                if set(group) & delta.keys():
+                    expected.update({k: merged[k] for k in group})
+            mismatch = changes(after['settings'], expected)
+            if after['settings'].get('gps') == 1:
+                for key in COORDS:
+                    if key not in delta:
+                        mismatch.pop(key, None)
             if mismatch:
                 raise RuntimeError(f'Read-back mismatch in: {", ".join(mismatch)}')
+            after_channels = dict(known_channels)
+            for channel in channel_delta:
+                actual = await read_channel(mc, channel['index'])
+                if actual != channel:
+                    raise RuntimeError(f"Read-back mismatch in channel slot {channel['index']}")
+                after_channels[channel['index']] = actual
+            after['channels'] = list(after_channels.values())
             report['verified'] = True
             return after
         except Exception as exc:
