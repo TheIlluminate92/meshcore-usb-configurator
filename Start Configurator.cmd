@@ -1,10 +1,10 @@
 @echo off
 cd /d "%~dp0"
-set "CONFIG_PYTHON=%USERPROFILE%\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe"
-if exist ".venv\Scripts\python.exe" set "CONFIG_PYTHON=%~dp0.venv\Scripts\python.exe"
+set "CONFIG_PYTHON=%USERPROFILE%\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\pythonw.exe"
+if exist ".venv\Scripts\pythonw.exe" set "CONFIG_PYTHON=%~dp0.venv\Scripts\pythonw.exe"
 if exist "%CONFIG_PYTHON%" (
-  "%CONFIG_PYTHON%" launch.py
+  start "" "%CONFIG_PYTHON%" "%~dp0launch.py"
 ) else (
-  py -3 launch.py
+  start "" pyw -3 "%~dp0launch.py"
 )
-if errorlevel 1 pause
+exit /b

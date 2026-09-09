@@ -14,3 +14,5 @@ Next development: validate expanded writes on the T114; inspect additional hardw
 
 2026-09-09: refreshed desktop theme and pending-edit feedback; audited all controls against Companion 1.17.1. Fixed signed power, wire precision and snapshot-scope reporting. 31 tests pass; fresh COM4 read returned 22 settings/40 channels without errors. No hardware writes performed. Details in SETTINGS_AUDIT.md.
 
+
+Added no-console launcher, per-setting qualitative battery costs/recommendations, existing-plus-N-empty channel editor and USB/Bluetooth selection. Bluetooth runtime installed locally; Windows scan reports Bluetooth unavailable/off. BLE hardware validation pending. Recommendations are advisory; no automatic firmware or radio changes.

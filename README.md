@@ -1,6 +1,6 @@
-# MeshCore USB Configurator
+# MeshCore Configurator — USB & Bluetooth
 
-Double-click **Start Configurator.cmd** on this Windows laptop. Close the browser's serial connection first. Select the USB COM port, click **Read device**, and confirm the displayed name, model and firmware.
+Double-click **Start Configurator.cmd**. The launcher starts Python without a persistent command window. Choose **USB** or **Bluetooth**, click **Find devices**, select your radio, then **Read device**. Close other browser/phone connections first. Startup errors are shown in a dialog and saved in local `startup-error.log`.
 
 Hover over any setting label, input or **?** for a short explanation. Click **?** (or Tab to it and press Space/Enter) to keep the explanation open in a dialog. Help also covers channel fields, the USB port and action buttons, and remains available before a device is read.
 
@@ -8,7 +8,7 @@ Every read saves a JSON snapshot under `snapshots`. Optional read errors are rec
 
 ## What is supported
 
-- Serial port enumeration; protocol identification after selecting a port.
+- USB port enumeration and Bluetooth discovery; protocol identification after selecting a device. Windows handles Bluetooth pairing/PIN prompts. BLE connection/read/write remains pending live hardware validation.
 - Read device/self information, custom variables, contacts and channels (up to 64 reported slots).
 - 23 setting controls across Device & Radio, Location & GPS, Contact Discovery and Telemetry tabs. These include name, radio parameters, fixed coordinates, location sharing, GPS controls, contact discovery mode and type filters, replacement policy, discovery reach, telemetry permissions, extra acknowledgements and path-hash size.
 - Edit channel names and explicit 16-byte keys by numbered slot; verify both after writing. Keys are hidden in the editor.
@@ -49,3 +49,19 @@ Snapshots may contain channel secrets, PINs, contact details and location. Keep 
 
 The light interface uses a navy header, teal action buttons, hover/click help, highlighted pending edits and a pending-change count. Unsupported controls stay disabled. See [SETTINGS_AUDIT.md](SETTINGS_AUDIT.md) for the full settings review, corrections and validation limits.
 
+
+## Recommendations and battery hints
+
+Every setting has a short suggestion beside a narrower profile input. Five small battery icons show **relative power cost within that setting**: more filled icons means greater cost, not remaining charge. A dash means minor or uncertain impact. These are qualitative app heuristics, not measured hours or additive scores. Radio hints describe transmissions, not idle consumption. Traffic, board, GPS duty cycle and battery determine real runtime. Recommendations never change values automatically. Keep frequency, bandwidth, SF and CR matched to your mesh.
+
+Radio airtime guidance follows [Semtech's LoRa FAQ](https://www.semtech.com/design-support/faq/faq-lora) and [modulation tradeoffs](https://www.semtech.com/design-support/faq/P100). Exact five-level thresholds are app heuristics, not Semtech ratings.
+
+## Channels
+
+Existing channels remain visible. **Empty slots to add** exposes that many available slots, each with its actual number. The device maximum and successfully read/empty counts are shown. Reducing the count hides unused rows only; edited rows stay visible. Clear a channel explicitly using an empty name and 32 zero key digits, then review/apply. Profile imports reveal edited slots even beyond the selected count.
+
+## Bluetooth
+
+Requires a working Windows Bluetooth adapter, the installed Bleak dependency and BLE-enabled Companion firmware. A USB-only image cannot be made Bluetooth-capable by this app; see the [MeshCore FAQ](https://docs.meshcore.io/faq/). Pairing is handled by Windows, and PINs are not saved in profiles. The same protocol verification and identity checks apply over either transport. JSON stays the interchange format.
+
+Windows support libraries are installed in the local project. A scanner check on this PC reported Bluetooth unavailable/off, so a real BLE connection and write have not been tested. Discovery filtering, routing and failed-connection cleanup are tested with simulations. USB remains usable.

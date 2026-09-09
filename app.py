@@ -8,10 +8,11 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import json
 from model import FIELDS, CHOICES, EDITABLE_CHOICES, OTHER, AUTO, validate, validate_channels, load_document, profile, changes, display, parse_input
-from device import serial_ports, read_device, apply_device, save_json
+from device import bluetooth_devices, serial_ports, read_device, apply_device, save_json
 from help_text import HELP
 from tooltips import Tooltip, help_label
 from theme import apply_theme
+from guidance import BatteryHint
 
 ROOT = Path(__file__).resolve().parent
 
@@ -22,29 +23,33 @@ class App:
         self.pending = tk.StringVar(value='Read a radio to begin')
         self.support_summary = tk.StringVar(value='USB COMPANION  /  LOCAL CONFIGURATION')
         self.results = queue.Queue()
-        root.title('MeshCore USB Configurator — Expanded settings')
-        root.geometry('1180x850')
-        root.minsize(1080, 790)
+        root.title('MeshCore Configurator — USB & Bluetooth')
+        root.geometry('1280x900')
+        root.minsize(1180, 880)
         apply_theme(root)
         outer = ttk.Frame(root, padding=16, style='Root.TFrame')
         outer.pack(fill='both', expand=True)
         header = ttk.Frame(outer, padding=(24, 14), style='Header.TFrame')
         header.pack(fill='x', pady=(0, 14))
-        ttk.Label(header, text='MeshCore  /  USB Configurator', style='Title.TLabel').pack(anchor='w')
+        ttk.Label(header, text='MeshCore  /  Device Configurator', style='Title.TLabel').pack(anchor='w')
         ttk.Label(header, text='01  Connect & read     →     02  Edit profile     →     03  Review & verify', style='Subtitle.TLabel').pack(anchor='w', pady=(8, 0))
         connection = ttk.Frame(outer, padding=(18, 12))
         connection.pack(fill='x', pady=(0, 14))
         row = ttk.Frame(connection)
         row.pack(fill='x')
+        self.transport = tk.StringVar(value='USB')
+        self.transport_box = ttk.Combobox(row, textvariable=self.transport, values=['USB', 'Bluetooth'], width=12, state='readonly')
+        self.transport_box.pack(side='left', padx=(0, 8))
+        self.transport_box.bind('<<ComboboxSelected>>', lambda _: self.change_transport())
         self.port = tk.StringVar()
         self.port_box = ttk.Combobox(row, textvariable=self.port, width=43, state='readonly')
         self.port_box.pack(side='left')
         Tooltip(self.port_box, 'USB serial port', HELP['port'])
-        help_label(row, 'USB', HELP['port']).pack(side='left')
+        help_label(row, '?', 'Bluetooth needs BLE-enabled Companion firmware. Windows handles pairing. Close phone/browser connections before reading.').pack(side='left')
         self.port_box.bind('<<ComboboxSelected>>', lambda _: self.invalidate())
         self.buttons = []
         self.action_buttons = {}
-        self.button(row, 'Refresh ports', self.scan)
+        self.button(row, 'Find devices', self.scan)
         self.button(row, 'Read device', self.read)
         self.identity = tk.StringVar(value='No device read. Connect a Companion USB device, then select its port.')
         ttk.Label(connection, textvariable=self.identity, wraplength=1030, style='Muted.TLabel').pack(anchor='w', pady=(10, 4))
@@ -54,6 +59,7 @@ class App:
         notebook = ttk.Notebook(outer)
         notebook.pack(fill='both', expand=True)
         self.variables, self.entries, self.current = {}, {}, {}
+        self.hints = {}
         groups = {
             'Device & radio': ('name', 'frequency', 'bandwidth', 'spreading_factor', 'coding_rate', 'tx_power', 'path_hash_mode', 'multi_acks'),
             'Location & GPS': ('gps', 'gps_interval', 'latitude', 'longitude', 'advert_location_policy'),
@@ -69,29 +75,39 @@ class App:
         for title, keys in groups.items():
             editor = ttk.Frame(notebook, padding=12)
             notebook.add(editor, text=title)
-            for column, label in enumerate(('Setting', 'Device value', 'Profile value')):
+            for column, label in enumerate(('Setting', 'Device value', 'Profile value', 'POWER COST / SUGGESTION')):
                 heading = ttk.Label(editor, text=label.upper(), style='Caption.TLabel')
                 heading.grid(row=0, column=column, sticky='w')
-                if column:
+                if column in (1, 2):
                     Tooltip(heading, label, HELP['device_value' if column == 1 else 'profile_value'])
             for index, key in enumerate(keys, 1):
                 help_label(editor, FIELDS[key][0], HELP[key]).grid(row=index, column=0, sticky='w', padx=(0, 12), pady=4)
                 current = tk.StringVar(value='Not read')
-                ttk.Label(editor, textvariable=current, width=30, style='Muted.TLabel').grid(row=index, column=1, sticky='w', padx=(0, 12))
+                ttk.Label(editor, textvariable=current, width=22, style='Muted.TLabel').grid(row=index, column=1, sticky='w', padx=(0, 12))
                 variable = tk.StringVar()
                 if key in CHOICES:
-                    entry = ttk.Combobox(editor, textvariable=variable, values=list(CHOICES[key].values()), width=30, state='disabled')
+                    entry = ttk.Combobox(editor, textvariable=variable, values=list(CHOICES[key].values()), width=18, state='disabled')
                 else:
-                    entry = ttk.Entry(editor, textvariable=variable, width=30, state='disabled')
+                    entry = ttk.Entry(editor, textvariable=variable, width=18, state='disabled')
                 entry.grid(row=index, column=2, sticky='ew')
+                self.hints[key] = BatteryHint(editor, key)
+                self.hints[key].grid(row=index, column=3, sticky='w')
                 Tooltip(entry, FIELDS[key][0], HELP[key])
                 self.variables[key], self.entries[key], self.current[key] = variable, entry, current
                 variable.trace_add('write', lambda *_, k=key: self.edited())
             editor.columnconfigure(2, weight=1)
-            ttk.Label(editor, text=notes[title], wraplength=1020, style='Note.TLabel').grid(row=len(keys)+1, column=0, columnspan=3, sticky='w', pady=8)
+            ttk.Label(editor, text=notes[title], wraplength=1020, style='Note.TLabel').grid(row=len(keys)+1, column=0, columnspan=4, sticky='w', pady=8)
         self.channel_page = ttk.Frame(notebook, padding=12)
         notebook.add(self.channel_page, text='Channels')
-        ttk.Label(self.channel_page, text='Edit existing numbered slots. Keys are hexadecimal and hidden. Empty name with a zero key clears a slot.\nOnly changed slots are written. Browser exports map channels by list order; review the slot assignments.', wraplength=890).pack(anchor='w', pady=(0, 10))
+        ttk.Label(self.channel_page, text='Existing channels stay visible. Choose how many empty slots to add. Reducing this number does not delete channels or edits.\nClear a slot explicitly with an empty name and a zero key; writes still require Review & apply.', wraplength=1050).pack(anchor='w', pady=(0, 8))
+        channel_tools = ttk.Frame(self.channel_page)
+        channel_tools.pack(fill='x', pady=(0, 8))
+        ttk.Label(channel_tools, text='Empty slots to add:').pack(side='left')
+        self.channel_count = tk.StringVar(value='0')
+        self.channel_count_box = ttk.Spinbox(channel_tools, from_=0, to=0, textvariable=self.channel_count, width=4)
+        self.channel_count_box.pack(side='left', padx=8)
+        self.channel_limit = tk.StringVar(value='Read a device to see its channel limit.')
+        ttk.Label(channel_tools, textvariable=self.channel_limit, style='Muted.TLabel').pack(side='left')
         self.channel_canvas = tk.Canvas(self.channel_page, highlightthickness=0, background='white')
         scrollbar = ttk.Scrollbar(self.channel_page, orient='vertical', command=self.channel_canvas.yview)
         scrollbar.pack(side='right', fill='y')
@@ -102,9 +118,12 @@ class App:
         self.channel_canvas.bind('<Configure>', lambda e: self.channel_canvas.itemconfigure(window, width=e.width))
         self.channel_rows.bind('<Configure>', lambda e: self.channel_canvas.configure(scrollregion=self.channel_canvas.bbox('all')))
         self.channel_vars, self.channel_entries = {}, []
+        self.channel_widgets = {}
+        self.channel_count.trace_add('write', lambda *_: self.filter_channels())
         self.variables['gps'].trace_add('write', lambda *_: self.location_state())
         self.details = tk.Text(notebook, wrap='none', font=('Consolas', 10), background='#f8fafc', foreground='#243c53', relief='flat', padx=16, pady=16)
         notebook.add(self.details, text='Device data')
+        ttk.Label(footer, text='Battery icons: more filled = higher power cost for that setting. Rough guidance, not runtime; — = minor or uncertain. Radio costs apply while transmitting.', style='Status.TLabel', wraplength=1120).pack(anchor='w', pady=(5, 0))
         ttk.Label(footer, textvariable=self.pending, style='Pending.TLabel').pack(anchor='w', pady=(13, 0))
         actions = ttk.Frame(footer, style='Root.TFrame')
         actions.pack(fill='x', pady=12)
@@ -115,7 +134,7 @@ class App:
         self.status = tk.StringVar(value='Ready. No configuration has been written.')
         ttk.Label(footer, textvariable=self.status, wraplength=1010, style='Status.TLabel').pack(anchor='w')
         root.protocol('WM_DELETE_WINDOW', self.close)
-        root.after(100, self.poll)
+        self.poll_id = root.after(100, self.poll)
         self.scan()
         self.edited()
 
@@ -132,7 +151,16 @@ class App:
         if text in HELP:
             Tooltip(b, text, HELP[text])
 
+    def change_transport(self):
+        self.port.set('')
+        self.invalidate()
+        self.scan()
+
     def scan(self):
+        if self.transport.get() == 'Bluetooth':
+            self.invalidate()
+            self.run(bluetooth_devices(), self.bluetooth_found, 'Scanning Bluetooth for 8 seconds… BLE firmware must be enabled.')
+            return
         old = self.port.get()
         ports = [f'{p} | {desc}' for p, desc in serial_ports()]
         self.port_box['values'] = ports
@@ -140,6 +168,13 @@ class App:
             self.port.set(next((p for p in ports if 'USB' in p.upper()), ports[0] if ports else ''))
             self.invalidate()
         self.status.set(f'{len(ports)} serial port(s) found. Select the USB device and read it.')
+
+    def bluetooth_found(self, devices):
+        choices = [f'{address} | {name}' for address, name in devices]
+        self.port_box['values'] = choices
+        self.port.set(choices[0] if choices else '')
+        self.status.set(f'{len(choices)} Bluetooth candidate(s). Select yours, then Read device. Windows may ask for pairing.' if choices else 'No BLE companions found. Check Bluetooth, firmware mode and existing phone connections.')
+        self.edited()
 
     def invalidate(self):
         self.loading = True
@@ -169,22 +204,30 @@ class App:
             count += int(changed)
             kind = 'TCombobox' if key in CHOICES else 'TEntry'
             entry.configure(style=('Changed.' if changed else '')+kind)
+            self.hints[key].update_value(self.variables[key].get(), self.snapshot is not None and key in self.snapshot['settings'])
         before = {c['index']: c for c in self.snapshot.get('channels', [])} if self.snapshot else {}
         for index, (name, secret) in self.channel_vars.items():
             if index in before and (name.get() != before[index]['name'] or secret.get().lower() != before[index]['secret']):
                 channel_count += 1
         self.pending.set(f'{count} setting changes  ·  {channel_count} channel slots pending' if count or channel_count else ('Up to date  ·  No pending edits' if self.snapshot else 'Read a radio to begin'))
         for name, button in self.action_buttons.items():
-            enabled = not self.busy and (name in ('Read device', 'Refresh ports') or self.snapshot is not None)
+            enabled = not self.busy and (name in ('Read device', 'Find devices') or self.snapshot is not None)
             if name == 'Review & apply':
                 enabled = enabled and bool(count or channel_count)
             button.configure(state='normal' if enabled else 'disabled')
         self.location_state()
+        self.filter_channels()
 
     def show_channels(self, channels):
         for widget in self.channel_rows.winfo_children():
             widget.destroy()
         self.channel_vars, self.channel_entries = {}, []
+        self.channel_widgets = {}
+        self.channel_count.set('0')
+        empty = sum(not c['name'] and c['secret'] == '00'*16 for c in channels)
+        maximum = self.snapshot.get('device', {}).get('max_channels', len(channels)) if self.snapshot else 0
+        self.channel_count_box.configure(to=empty)
+        self.channel_limit.set(f'Device maximum: {maximum} channels  ·  {len(channels)} slots read  ·  {empty} empty slots available')
         for col, label in enumerate(('Slot', 'Device channel', 'Profile channel name', 'Profile key (hidden)')):
             key = ('channel_slot', 'channel_current', 'channel_name', 'channel_secret')[col]
             help_label(self.channel_rows, label, HELP[key]).grid(row=0, column=col, sticky='w', padx=5)
@@ -198,11 +241,32 @@ class App:
                 entry.grid(row=row, column=col, padx=5, sticky='ew')
                 Tooltip(entry, 'Channel name' if col == 2 else 'Channel key', HELP['channel_name' if col == 2 else 'channel_secret'])
                 self.channel_entries.append(entry)
+            self.channel_widgets[index] = list(self.channel_rows.grid_slaves(row=row))
             self.channel_vars[index] = (name, secret)
             name.trace_add('write', lambda *_: self.edited())
             secret.trace_add('write', lambda *_: self.edited())
+        self.filter_channels()
         if not channels:
             ttk.Label(self.channel_rows, text='No successfully read channel slots. Read the device to populate this tab.').grid(row=1, column=0, columnspan=4, pady=15)
+
+    def filter_channels(self):
+        if not hasattr(self, 'channel_widgets'):
+            return
+        try:
+            count = max(0, int(self.channel_count.get()))
+        except ValueError:
+            return
+        before = {c['index']: c for c in self.snapshot.get('channels', [])} if self.snapshot else {}
+        for index, widgets in self.channel_widgets.items():
+            n, secret = self.channel_vars[index]
+            old = before[index]
+            occupied = bool(old['name']) or old['secret'] != '00'*16
+            edited = n.get() != old['name'] or secret.get().lower() != old['secret']
+            visible = occupied or edited or count > 0
+            if not occupied and count > 0:
+                count -= 1
+            for w in widgets:
+                w.grid() if visible else w.grid_remove()
 
     def desired_channels(self):
         return validate_channels([{'index': i, 'name': n.get(), 'secret': s.get()} for i, (n, s) in self.channel_vars.items()])
@@ -227,6 +291,8 @@ class App:
         for b in self.buttons:
             b.configure(state='disabled')
         self.port_box.configure(state='disabled')
+        self.transport_box.configure(state='disabled')
+        self.channel_count_box.configure(state='disabled')
         for e in self.entries.values():
             e.configure(state='disabled')
         for e in self.channel_entries:
@@ -249,6 +315,8 @@ class App:
             for b in self.buttons:
                 b.configure(state='normal')
             self.port_box.configure(state='readonly')
+            self.transport_box.configure(state='readonly')
+            self.channel_count_box.configure(state='normal')
             if error:
                 self.invalidate()
                 self.status.set('Operation failed. Read again before applying changes.')
@@ -259,7 +327,7 @@ class App:
                 except Exception as exc:
                     self.invalidate()
                     messagebox.showerror('Could not save or display result', str(exc))
-        self.root.after(100, self.poll)
+        self.poll_id = self.root.after(100, self.poll)
 
     def read(self):
         self.run(read_device(self.selected_port()), self.read_done, 'Reading settings, channels and contacts…')
@@ -358,6 +426,7 @@ class App:
         if self.busy:
             messagebox.showinfo('Operation in progress', 'Wait for the device operation to finish before closing.')
         else:
+            self.root.after_cancel(self.poll_id)
             self.root.destroy()
 
 if __name__ == '__main__':

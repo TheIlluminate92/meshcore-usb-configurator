@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 import json
 import struct
+import re
 from model import RADIO, COORDS, OTHER, AUTO, AUTO_BITS, FIELDS, validate, validate_channels, changes
 
 MAP = {'name': 'name', 'frequency': 'radio_freq', 'bandwidth': 'radio_bw',
@@ -32,6 +33,27 @@ def supported_value(key, value):
 def serial_ports():
     from serial.tools import list_ports
     return [(p.device, p.description) for p in list_ports.comports()]
+
+async def bluetooth_devices():
+    from bleak import BleakScanner
+    from meshcore.ble_cx import UART_SERVICE_UUID
+    try:
+        found = await BleakScanner.discover(timeout=8, return_adv=True)
+    except Exception as exc:
+        raise RuntimeError('Bluetooth scan failed. Check that Windows Bluetooth is turned on and a Bluetooth adapter is available. Then try Find devices again. Details: ' + str(exc)) from exc
+    return sorted([(f'ble:{dev.address}', adv.local_name or dev.name or 'BLE Companion')
+                   for dev, adv in found.values()
+                   if UART_SERVICE_UUID.lower() in [u.lower() for u in adv.service_uuids]
+                   or (adv.local_name or dev.name or '').lower().startswith('meshcore')])
+
+def make_connection(port):
+    if port.startswith('ble:'):
+        from meshcore import BLEConnection
+        # This library uses a non-None pin flag to request OS pairing.
+        # Windows handles PIN entry; no PIN is stored by this app.
+        return BLEConnection(address=port[4:], pin=True)
+    from serial_connection import ClosingSerialConnection
+    return ClosingSerialConnection(port, 115200)
 
 def save_json(path, data):
     path = Path(path)
@@ -86,18 +108,19 @@ async def read_channel(mc, index):
 
 async def operate(port, action):
     from meshcore import MeshCore
-    from serial_connection import ClosingSerialConnection
-    connection = ClosingSerialConnection(port, 115200)
+    connection = make_connection(port)
     mc = MeshCore(connection, only_error=True, default_timeout=5, auto_reconnect=False)
     try:
         try:
-            response = await asyncio.wait_for(mc.connect(), 15)
+            response = await asyncio.wait_for(mc.connect(), 90 if port.startswith('ble:') else 15)
         except Exception as exc:
+            if port.startswith('ble:'):
+                raise RuntimeError('Bluetooth connection failed. Enable BLE Companion firmware, close other connections, and complete Windows pairing if prompted. No configuration commands were sent by this operation.') from exc
             if isinstance(exc, PermissionError) or 'Access is denied' in str(exc):
                 raise RuntimeError(f'{port} is busy or Windows denied access. Close other browser/app connections to this port. If an older configurator is open, close it and reopen the updated version. No configuration commands were sent by this operation.') from exc
             raise
         if response is None:
-            raise RuntimeError('No Companion USB response. Check firmware and close other apps using this port.')
+            raise RuntimeError('No Companion response. Check the selected device, firmware connection mode, and other app connections.')
         return await action(mc)
     finally:
         try:
@@ -171,7 +194,7 @@ async def apply_device(port, baseline, desired, report_dir, channels=None):
         report['channels_before'] = list(known_channels.values())
         report['channels_requested'] = channel_delta
         stamp = datetime.now().strftime('%Y%m%d-%H%M%S-%f')
-        report_path = Path(report_dir) / f'apply-{port}-{stamp}.json'
+        report_path = Path(report_dir) / f'apply-{re.sub(r"[^A-Za-z0-9_-]", "_", port)}-{stamp}.json'
         save_json(report_path, report)
         try:
             jobs = []

@@ -1,5 +1,6 @@
 # Device exports and generated data stay on the local computer.
 *.json
+*.log
 snapshots/
 reports/
 baselines/
