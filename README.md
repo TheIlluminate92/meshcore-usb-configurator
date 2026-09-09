@@ -2,6 +2,8 @@
 
 Double-click **Start Configurator.cmd** on this Windows laptop. Close the browser's serial connection first. Select the USB COM port, click **Read device**, and confirm the displayed name, model and firmware.
 
+Hover over any setting label, input or **?** for a short explanation. Click **?** (or Tab to it and press Space/Enter) to keep the explanation open in a dialog. Help also covers channel fields, the USB port and action buttons, and remains available before a device is read.
+
 Every read saves a JSON snapshot under `snapshots`. Optional read errors are recorded rather than presented as a complete backup. Edit fields or load a profile, then use **Review & apply** to inspect changes. Nothing is written by reading or loading a file. Applying checks identity and stale settings, saves a report, sends supported Companion commands, and rereads for verification. On a write error, some settings may already have changed; read again. There is no automatic retry or rollback.
 
 ## What is supported

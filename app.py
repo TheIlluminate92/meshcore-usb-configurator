@@ -9,6 +9,8 @@ from tkinter import ttk, filedialog, messagebox
 import json
 from model import FIELDS, CHOICES, EDITABLE_CHOICES, OTHER, AUTO, validate, validate_channels, load_document, profile, changes, display, parse_input
 from device import serial_ports, read_device, apply_device, save_json
+from help_text import HELP
+from tooltips import Tooltip, help_label
 
 ROOT = Path(__file__).resolve().parent
 
@@ -32,6 +34,8 @@ class App:
         self.port = tk.StringVar()
         self.port_box = ttk.Combobox(row, textvariable=self.port, width=43, state='readonly')
         self.port_box.pack(side='left')
+        Tooltip(self.port_box, 'USB serial port', HELP['port'])
+        help_label(row, 'USB', HELP['port']).pack(side='left')
         self.port_box.bind('<<ComboboxSelected>>', lambda _: self.invalidate())
         self.buttons = []
         self.button(row, 'Refresh ports', self.scan)
@@ -57,9 +61,12 @@ class App:
             editor = ttk.Frame(notebook, padding=12)
             notebook.add(editor, text=title)
             for column, label in enumerate(('Setting', 'Device value', 'Profile value')):
-                ttk.Label(editor, text=label, font=('Segoe UI', 10, 'bold')).grid(row=0, column=column, sticky='w')
+                heading = ttk.Label(editor, text=label, font=('Segoe UI', 10, 'bold'))
+                heading.grid(row=0, column=column, sticky='w')
+                if column:
+                    Tooltip(heading, label, HELP['device_value' if column == 1 else 'profile_value'])
             for index, key in enumerate(keys, 1):
-                ttk.Label(editor, text=FIELDS[key][0]).grid(row=index, column=0, sticky='w', padx=(0, 16), pady=8)
+                help_label(editor, FIELDS[key][0], HELP[key]).grid(row=index, column=0, sticky='w', padx=(0, 12), pady=8)
                 current = tk.StringVar(value='Not read')
                 ttk.Label(editor, textvariable=current, width=30).grid(row=index, column=1, sticky='w')
                 variable = tk.StringVar()
@@ -68,6 +75,7 @@ class App:
                 else:
                     entry = ttk.Entry(editor, textvariable=variable, width=30, state='disabled')
                 entry.grid(row=index, column=2, sticky='ew')
+                Tooltip(entry, FIELDS[key][0], HELP[key])
                 self.variables[key], self.entries[key], self.current[key] = variable, entry, current
             editor.columnconfigure(2, weight=1)
             ttk.Label(editor, text=notes[title], wraplength=890).grid(row=len(keys)+1, column=0, columnspan=3, sticky='w', pady=15)
@@ -108,6 +116,8 @@ class App:
         b = ttk.Button(frame, text=text, command=guarded)
         b.pack(side='left', padx=(8, 0))
         self.buttons.append(b)
+        if text in HELP:
+            Tooltip(b, text, HELP[text])
 
     def scan(self):
         old = self.port.get()
@@ -132,7 +142,8 @@ class App:
             widget.destroy()
         self.channel_vars, self.channel_entries = {}, []
         for col, label in enumerate(('Slot', 'Device channel', 'Profile channel name', 'Profile key (hidden)')):
-            ttk.Label(self.channel_rows, text=label).grid(row=0, column=col, sticky='w', padx=5)
+            key = ('channel_slot', 'channel_current', 'channel_name', 'channel_secret')[col]
+            help_label(self.channel_rows, label, HELP[key]).grid(row=0, column=col, sticky='w', padx=5)
         for row, channel in enumerate(channels, 1):
             index = channel['index']
             ttk.Label(self.channel_rows, text=str(index)).grid(row=row, column=0, padx=5, pady=7)
@@ -141,6 +152,7 @@ class App:
             for col, variable in ((2, name), (3, secret)):
                 entry = ttk.Entry(self.channel_rows, textvariable=variable, width=28, show='*' if col == 3 else '')
                 entry.grid(row=row, column=col, padx=5, sticky='ew')
+                Tooltip(entry, 'Channel name' if col == 2 else 'Channel key', HELP['channel_name' if col == 2 else 'channel_secret'])
                 self.channel_entries.append(entry)
             self.channel_vars[index] = (name, secret)
         if not channels:
