@@ -40,7 +40,11 @@ def verify_expected(snapshot,expected):
     return mismatch
 
 def profile_text(document):
-    lines=[document.get('name','Profile'),'']
+    lines=[document.get('name','Profile'),'',document.get('description',''),'']
+    if document.get('cli_settings'):
+        lines.extend(['SETUP REFERENCE ONLY — not writable with the Companion interface.',document.get('source',''),''])
+        lines.extend(f'{k}: {v}' for k,v in document['cli_settings'].items())
+        lines.extend(document.get('advice',[]))
     naming=document.get('naming',{})
     lines.append(f"Naming: {naming.get('prefix','Tracker')}-{naming.get('start',1):02d}, … (suggestion only)")
     lines.extend(f'{FIELDS[k][0]}: {display(k,v)}' for k,v in document['settings'].items())

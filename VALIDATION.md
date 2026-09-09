@@ -28,3 +28,7 @@ The explicit `integration_update_probe.py` check compiles harmless Windows execu
 ## 0.5.3 restart regression
 
 All 94 unit tests pass. The real one-file `integration_frozen_restart.py` probe replaces and restarts itself using the production helper, then confirms a fresh, existing PyInstaller extraction directory. The earlier non-PyInstaller helper test did not cover inherited runtime state. The frozen probe now also gates release publishing. Downloads-to-update-to-GUI on the user installation still needs confirmation; existing profiles and radios were not modified.
+
+## 0.6.0 recovery and support checks
+
+105 tests pass, including identity-bound restore, changed-field scope, incomplete-write restore, missing backup data, reduced hardware limits, private-data exclusion, malformed diagnostics, three role presets, server role rejection and a real Tk restore dialog rereading into the editor without writes. Library/history layout and compatibility dialog initialized offline at the minimum window size. No live device writes were performed. Repeater and Room Server profiles are reference-only; their CLI adapter and hardware validation remain future work. The user confirmed that updating 0.5.3 to 0.5.4 restarted successfully.

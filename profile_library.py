@@ -7,11 +7,13 @@ from model import profile, load_document, validate_naming
 PERSONAL = {'name', 'latitude', 'longitude'}
 
 class ProfileLibrary:
-    def __init__(self, folder):
+    def __init__(self, folder, include_builtin=False):
         self.folder = Path(folder)
+        self.include_builtin = include_builtin
 
     def entries(self):
-        entries, errors = [], []
+        from builtin_profiles import entries as defaults
+        entries, errors = (defaults() if self.include_builtin else []), []
         for path in sorted(self.folder.glob('*.json')):
             try:
                 settings, channels, _ = load_document(path)

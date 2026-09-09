@@ -1,5 +1,14 @@
 # Changelog
 
+## Recovery, support and profiles — 0.6.0
+
+- History can restore the fields/channels changed by a previous operation, including an incomplete write. It rereads the same radio by public identity, loads original values into the editor, and requires normal review, write and verification. Missing backups or incompatible current capabilities block restoration.
+- Added bounded structured error logs and a support ZIP under Help. Exports contain app/system metadata, capability names and sanitized diagnostic categories/stack locations; they exclude names, keys, coordinates, identifiers, raw payloads and exception messages.
+- Help → Report a bug on GitHub saves the ZIP and opens a prefilled issue. The user attaches the ZIP and submits it; no token or automatic upload.
+- Added per-radio compatibility details for mixed hardware before batch naming/review. Unsupported fields/slots and validation failures block applying rather than silently dropping settings.
+- Added three read-only built-ins: Companion starting point, Repeater setup reference and Room Server setup reference. Server references are preview/export only: their separate CLI transport is not implemented. They cannot be applied/imported as Companion profiles. Network radio settings, credentials and identity remain deployment choices.
+- User confirmed the 0.5.3 → 0.5.4 automatic update/restart worked.
+
 ## Update restart test — 0.5.4
 
 - Version-only test release to validate automatic update and restart from 0.5.3. No application behavior changes.

@@ -1,5 +1,6 @@
 """Read-only history browser, report export, and explicit post-restart reread."""
 import csv
+from diagnostics import record_error
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 from restart_check import check_restart
@@ -16,14 +17,14 @@ class HistoryPage(ttk.Frame):
         self.tree.bind('<<TreeviewSelect>>',lambda _:self.describe())
         self.text=tk.Text(self,height=7,wrap='word',font=('Consolas',9),state='disabled');self.text.pack(fill='both',expand=True,pady=8)
         row=ttk.Frame(self);row.pack(fill='x')
-        for title,fn in [('Refresh',self.refresh),('Remembered radios',self.radios),('Export results CSV…',self.export),('Verify selected radio after restart…',self.verify)]:
-            ttk.Button(row,text=title,command=lambda action=fn:self.guard(action)).pack(side='left',padx=(0,6))
+        for index,(title,fn) in enumerate([('Refresh',self.refresh),('Restore previous settings…',self.restore),('Remembered radios',self.radios),('Export results CSV…',self.export),('Verify selected radio after restart…',self.verify)]):
+            ttk.Button(row,text=title,command=lambda action=fn:self.guard(action)).grid(row=index//3,column=index%3,sticky='w',padx=(0,6),pady=3)
         self.refresh()
 
     def guard(self,action):
         if self.app.busy:messagebox.showinfo('Operation in progress','Wait for the device operation to finish.');return
         try:action()
-        except Exception as exc:messagebox.showerror('History',str(exc))
+        except Exception as exc:record_error('history',exc);messagebox.showerror('History',str(exc))
 
     def put(self,text):
         self.text.configure(state='normal');self.text.delete('1.0','end');self.text.insert('1.0',text);self.text.configure(state='disabled')
@@ -65,6 +66,10 @@ class HistoryPage(ttk.Frame):
             for r in rows:
                 latest=next((v for v in reversed(checks) if v['identity']==r['identity']),None)
                 writer.writerow([cell(x) for x in (r['name'],r['identity'],r['port'],r['status'],r['error'],latest['status'] if latest else 'Not checked')])
+
+    def restore(self):
+        from restore_ui import open_restore
+        open_restore(self.app,self.app.profile_page.library.folder.parent/'reports')
 
     def verify(self):
         if not self.app.confirm_discard():return

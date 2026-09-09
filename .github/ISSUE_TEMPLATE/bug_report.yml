@@ -1,0 +1,22 @@
+name: Bug report
+description: Report a problem with MeshCore Configurator
+body:
+  - type: input
+    id: version
+    attributes:
+      label: App version
+      description: Find this under App updates.
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened?
+      description: Include steps to reproduce and what you expected.
+    validations:
+      required: true
+  - type: textarea
+    id: support
+    attributes:
+      label: Support report
+      description: Use Help → Save support report, then drag the ZIP here. Review screenshots for private information; do not attach device snapshots or profiles containing keys.

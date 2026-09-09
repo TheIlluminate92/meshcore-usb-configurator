@@ -15,12 +15,14 @@ from tooltips import Tooltip, help_label
 from theme import apply_theme
 from guidance import BatteryHint
 
+from diagnostics import record_error
 from app_paths import DATA_ROOT
 ROOT = DATA_ROOT
 
 class App:
     def __init__(self, root):
         self.root, self.snapshot, self.busy = root, None, False
+        root.report_callback_exception = self.callback_error
         self.loading = False
         self.pending_count = 0
         self.editor_port_choice = ''
@@ -48,6 +50,10 @@ class App:
         outer.pack(fill='both', expand=True)
         header = ttk.Frame(outer, padding=(20, 10), style='Header.TFrame')
         header.pack(fill='x', pady=(0, 10))
+        tools_button=ttk.Menubutton(header,text='Help');tools_button.pack(side='right',padx=(8,0))
+        tools_menu=tk.Menu(tools_button,tearoff=False);tools_button.configure(menu=tools_menu)
+        tools_menu.add_command(label='Save support report…',command=self.save_support)
+        tools_menu.add_command(label='Report a bug on GitHub…',command=lambda:self.save_support(open_github=True))
         ttk.Button(header,text='App updates',command=self.open_updates).pack(side='right',padx=(8,0))
         self.theme_choice=tk.StringVar(value=self.preferences.get('theme','System'))
         theme_box=ttk.Combobox(header,textvariable=self.theme_choice,values=['Light','Dark','System'],state='readonly',width=8)
@@ -179,6 +185,28 @@ class App:
         self.scan()
         self.edited()
 
+    def callback_error(self, kind, value, trace):
+        record_error('interface', value.with_traceback(trace))
+        messagebox.showerror('Interface error', 'Something went wrong. A diagnostic entry was saved when possible. Use Help → Save support report.', parent=self.root)
+
+    def save_support(self, open_github=False):
+        if self.busy or (self.batch_window is not None and self.batch_window.busy):
+            messagebox.showinfo('Operation in progress','Wait for the device operation to finish.');return
+        path=filedialog.asksaveasfilename(title='Save private-data-free support report',defaultextension='.zip',initialfile='MeshCore-support.zip',filetypes=[('Support report','*.zip')])
+        if not path:return
+        try:
+            from diagnostics import support_report
+            count=support_report(path,self.snapshot,ROOT)
+            self.status.set(f'Support report saved with {count} diagnostic entries. No names, keys, locations or raw device data included.')
+            if open_github:
+                import webbrowser
+                from diagnostics import issue_url
+                opened=webbrowser.open(issue_url())
+                messagebox.showinfo('Attach your support report',f'Support ZIP saved:\n{path}\n\n'+('On the GitHub issue page, drag this ZIP into the description, describe what happened, and select Submit new issue. GitHub may ask you to sign in.' if opened else 'Open the project Issues page on GitHub, create a bug report, and attach this ZIP.')+'\n\nNothing has been uploaded or submitted automatically.',parent=self.root)
+        except Exception as exc:
+            record_error('support',exc)
+            messagebox.showerror('Support report',str(exc),parent=self.root)
+
     def refresh_state_badge(self):
         value=self.status.get().lower()
         if any(word in value for word in ('failed','error','denied')):badge='! Needs attention'
@@ -218,6 +246,7 @@ class App:
             try:
                 command()
             except Exception as exc:
+                record_error('interface',exc)
                 messagebox.showerror('MeshCore Configurator', str(exc))
         b = ttk.Button(frame, text=text, command=guarded, style='Primary.TButton' if text in ('Read device', 'Review & apply') else 'TButton')
         b.pack(side='left', padx=(8, 0))
@@ -395,6 +424,7 @@ class App:
             try:
                 self.results.put((callback, asyncio.run(operation), None))
             except Exception as exc:
+                record_error('device',exc)
                 self.results.put((callback, None, str(exc)))
         threading.Thread(target=worker, daemon=True).start()
 
@@ -418,6 +448,7 @@ class App:
                 try:
                     callback(result)
                 except Exception as exc:
+                    record_error('interface',exc)
                     self.invalidate()
                     messagebox.showerror('Could not save or display result', str(exc))
         self.poll_id = self.root.after(100, self.poll)

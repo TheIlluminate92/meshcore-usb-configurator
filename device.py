@@ -124,6 +124,9 @@ async def operate(port, action):
     finally:
         import sys
         primary=sys.exception();cleanup_errors=[]
+        if primary:
+            from diagnostics import record_error
+            record_error('device',primary)
         # Bound cleanup and always try both layers, including partial connects.
         for disconnect in (mc.disconnect,connection.disconnect):
             try:await asyncio.wait_for(disconnect(),10)

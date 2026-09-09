@@ -71,3 +71,13 @@ With the project virtual environment activated, run `build_exe.ps1` to create th
 Private exports, snapshots, profiles, databases, reports, credentials, bundled runtimes and build outputs are excluded from Git. These local files can contain channel secrets, contacts and locations; published release packages contain only the application.
 
 Protocol references: [MeshCore firmware](https://github.com/meshcore-dev/meshcore), [MeshCore Python client](https://github.com/meshcore-dev/meshcore_py). See [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md) for implementation boundaries.
+
+## Recovery and support
+
+In History, choose **Restore previous settings**, select the operation to undo, and reread the original radio. Previous values fill the editor; **Review & apply** performs the restore and reread verification. Only fields/channel slots requested by that saved operation are restored. This is not a flash/identity/contacts backup. Batch operations create individual apply reports, so each radio can be restored separately.
+
+**Help → Save support report** creates a ZIP without device names, identifiers, keys, coordinates, raw payloads or exception messages. New errors record categories, numeric codes and source locations in rotating logs (128 KiB each, two backups). Old startup/apply logs are not bundled. **Report a bug on GitHub** saves the same ZIP and opens an issue draft; drag the ZIP into the issue and submit it. Nothing is uploaded automatically.
+
+Saved profiles includes **Companion**, **Repeater** and **Room Server** built-ins. Companion is a writable conservative starting point; server presets are clearly labeled setup references for the separate server CLI, with suggested settings and effects. They do not change firmware roles. Recommendations are project starting points, not official MeshCore defaults. Radio parameters and power stay unchanged so local network settings are preserved. Server command semantics: https://docs.meshcore.io/cli_commands/ . Direct server configuration is not implemented yet.
+
+Use **Compatibility** in Saved profiles or **More → Compatibility review** in Batch editor for per-radio availability and changes. Unsupported or invalid profile items block the batch; edit the profile or uncheck incompatible radios. Nothing is silently skipped.

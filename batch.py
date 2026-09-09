@@ -6,6 +6,8 @@ from model import validate, validate_channels, changes, RADIO, COORDS, OTHER
 from device import apply_device, save_json, MAP
 
 def plan_device(snapshot, document):
+    from compatibility import check_role
+    check_role(document)
     settings=validate(document['settings'],snapshot['self_info'].get('max_tx_power',0))
     missing=set(settings)-set(snapshot['settings'])
     if missing:

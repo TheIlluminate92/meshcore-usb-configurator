@@ -113,6 +113,8 @@ def load_profile(path):
     data = json.loads(path.read_text(encoding='utf-8-sig'))
     if not isinstance(data, dict):
         raise ValueError('Profile must be a JSON object.')
+    from compatibility import check_role
+    check_role(data)
     if 'schema_version' in data:
         if type(data['schema_version']) is not int or data['schema_version'] not in (1, 2) or data.get('format') != 'meshcore-usb-profile':
             raise ValueError('Unrecognized profile format or version.')

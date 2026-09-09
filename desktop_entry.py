@@ -22,7 +22,12 @@ try:
         app.close()
     else:
         root.mainloop()
-except Exception:
+except Exception as exc:
+    try:
+        from diagnostics import record_error
+        record_error('startup',exc)
+    except Exception:
+        pass
     log_directory=Path(sys.executable).resolve().parent/'User Data' if getattr(sys,'frozen',False) else original_directory
     log_directory.mkdir(parents=True,exist_ok=True)
     (log_directory/'startup-error.log').write_text(traceback.format_exc(), encoding='utf-8')

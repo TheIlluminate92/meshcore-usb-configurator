@@ -3,6 +3,7 @@ import asyncio
 import copy
 import queue
 import threading
+from diagnostics import record_error
 import tkinter as tk
 from tkinter import ttk, messagebox, simpledialog
 from datetime import datetime
@@ -49,6 +50,7 @@ class BatchWindow:
         button(profilebar,'Compare',self.compare)
         more=ttk.Menubutton(profilebar,text='More');more.pack(side='left');self.controls.append(more)
         menu=tk.Menu(more,tearoff=False);more.configure(menu=menu)
+        menu.add_command(label='Compatibility review…',command=lambda:self.guard(self.compatibility))
         menu.add_command(label='Individual names & positions…',command=lambda:self.guard(self.individual_step))
         menu.add_command(label='Save shared profile…',command=lambda:self.guard(self.save_shared))
         self.all_checked=tk.BooleanVar(value=False)
@@ -146,7 +148,7 @@ class BatchWindow:
     def guard(self,action):
         if self.busy:return
         try:action()
-        except Exception as exc:messagebox.showerror('Multiple devices',str(exc),parent=self.window)
+        except Exception as exc:record_error('batch',exc);messagebox.showerror('Multiple devices',str(exc),parent=self.window)
 
     def invalidate_review(self):
         self.plans=None
@@ -193,7 +195,7 @@ class BatchWindow:
         self.stop.configure(state='normal')
         def worker():
             try:self.queue.put(('done',callback,asyncio.run(operation),None))
-            except Exception as exc:self.queue.put(('done',callback,None,str(exc)))
+            except Exception as exc:record_error('batch',exc);self.queue.put(('done',callback,None,str(exc)))
         threading.Thread(target=worker,daemon=True).start()
 
     def read_selected(self):
@@ -213,7 +215,7 @@ class BatchWindow:
                     snapshot['recognized_from']=previous['last_port'] if previous else None
                     results[port]=snapshot
                     self.queue.put(('progress',port,'Read complete'))
-                except Exception as exc:self.queue.put(('progress',port,'Read failed: '+str(exc)))
+                except Exception as exc:record_error('batch',exc);self.queue.put(('progress',port,'Read failed: '+str(exc)))
             return results
         def done(results):
             self.snapshots.update(results)
@@ -240,6 +242,8 @@ class BatchWindow:
         return snapshots
 
     def edit_shared(self):
+        from compatibility import check_role
+        check_role(self.document)
         from batch_editor import SharedEditor
         self.invalidate_review()
         SharedEditor(self,self.selected_snapshots())
@@ -250,6 +254,8 @@ class BatchWindow:
         IndividualWizard(self,self.selected_snapshots())
 
     def save_shared(self):
+        from compatibility import check_role
+        check_role(self.document)
         name=simpledialog.askstring('Save shared profile','Name for these shared settings:',parent=self.window)
         if name is None:return
         library=self.app.profile_page.library
@@ -263,10 +269,19 @@ class BatchWindow:
     def set_details(self,text):
         self.details.configure(state='normal');self.details.delete('1.0','end');self.details.insert('1.0',text);self.details.configure(state='disabled')
 
+    def compatibility(self):
+        from compatibility import show
+        show(self.window,self.selected_snapshots(),self.document)
+
     def review(self):
         self.invalidate_review();ports=self.selected()
         missing=[p for p in ports if p not in self.snapshots]
         if missing:raise ValueError('Read these devices first: '+', '.join(missing))
+        from compatibility import text as compatibility_text, review as compatibility_review
+        summary=compatibility_text([self.snapshots[p] for p in ports],self.document)
+        self.set_details(summary)
+        if any(compatibility_review(self.snapshots[p],self.document)[1] for p in ports):
+            self.status.set('Compatibility blocked. Edit the profile or uncheck incompatible radios, then review again.');return
         if any(self.snapshots[p]['self_info']['public_key'] not in self.individual for p in ports):
             self.individual_step();return
         errors=[]
@@ -278,7 +293,7 @@ class BatchWindow:
             except Exception as exc:errors.append(p+': '+str(exc));self.update(p,'Blocked: '+str(exc))
         if errors:self.set_details('\n'.join(errors));return
         plans=plan_many([self.snapshots[p] for p in ports],self.document,self.individual)
-        lines=[]
+        lines=[summary,'Proposed values','']
         for plan in plans:
             s=plan['baseline'];lines.append(f"{s['settings'].get('name','?')} — {plan['port']}")
             for k,v in plan['settings'].items():lines.append(f"  {FIELDS[k][0]}: {display(k,s['settings'][k])} → {display(k,v)}")
@@ -321,7 +336,7 @@ class BatchWindow:
                     messagebox.showerror('Batch operation failed',error,parent=self.window)
                 else:
                     try:callback(result)
-                    except Exception as exc:self.status.set(str(exc));messagebox.showerror('Batch result',str(exc),parent=self.window)
+                    except Exception as exc:record_error('batch',exc);self.status.set(str(exc));messagebox.showerror('Batch result',str(exc),parent=self.window)
         except queue.Empty:pass
         self.poll_id=self.window.after(100,self.poll)
 

@@ -28,7 +28,10 @@ class UpdateWindow:
         self.busy=True;self.check_button.configure(state='disabled');self.install_button.configure(state='disabled')
         def worker():
             try:self.results.put((fn(),None))
-            except Exception as exc:self.results.put((None,str(exc)))
+            except Exception as exc:
+                from diagnostics import record_error
+                record_error('update',exc)
+                self.results.put((None,str(exc)))
         threading.Thread(target=worker,daemon=True).start()
     def check(self):
         if self.busy:return

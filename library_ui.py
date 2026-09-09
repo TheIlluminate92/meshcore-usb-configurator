@@ -1,4 +1,5 @@
 """Named profile library and explicit field-selection dialog."""
+from diagnostics import record_error
 import tkinter as tk
 import json
 from tkinter import ttk, messagebox, filedialog, simpledialog
@@ -11,7 +12,7 @@ class LibraryPage(ttk.Frame):
     def __init__(self, parent, app, folder):
         super().__init__(parent,padding=16)
         self.app=app
-        self.library=ProfileLibrary(folder)
+        self.library=ProfileLibrary(folder, include_builtin=True)
         ttk.Label(self,text='Saved profiles',font=('Segoe UI',16,'bold')).pack(anchor='w')
         ttk.Label(self,text='Reusable settings saved on this PC. Loading fills the editor; applying always requires review.').pack(anchor='w',pady=(6,12))
         self.list=ttk.Treeview(self,columns=('name','settings','channels'),show='headings',height=7,selectmode='browse')
@@ -23,7 +24,7 @@ class LibraryPage(ttk.Frame):
         self.info=tk.StringVar()
         ttk.Label(self,textvariable=self.info,wraplength=1020,style='Muted.TLabel').pack(anchor='w',pady=8)
         row=ttk.Frame(self);row.pack(fill='x',pady=8)
-        for title,fn in [('Preview',self.preview),('Compare',self.compare),('Save editor…',self.save_editor),('Update…',self.update_editor),('Load into editor',self.load_editor),('Import…',self.import_file),('Export…',self.export),('Rename',self.rename),('Remove',self.remove)]:
+        for title,fn in [('Preview',self.preview),('Compatibility',self.compatibility),('Save editor…',self.save_editor),('Update…',self.update_editor),('Load into editor',self.load_editor),('Import…',self.import_file),('Export…',self.export),('Rename',self.rename),('Remove',self.remove)]:
             ttk.Button(row,text=title,command=lambda f=fn:self.guarded(f)).pack(side='left',padx=(0,6))
         ttk.Button(self,text='Apply profile to multiple devices…',style='Primary.TButton',command=lambda:self.guarded(self.batch)).pack(anchor='w',pady=(4,0))
         self.refresh()
@@ -32,7 +33,7 @@ class LibraryPage(ttk.Frame):
         if self.app.busy:
             messagebox.showinfo('Operation in progress','Wait for the current device operation to finish.');return
         try: action()
-        except Exception as exc: messagebox.showerror('Saved profiles',str(exc))
+        except Exception as exc: record_error('profiles',exc);messagebox.showerror('Saved profiles',str(exc))
 
     def refresh(self, selected=None):
         entries,errors=self.library.entries()
@@ -50,7 +51,7 @@ class LibraryPage(ttk.Frame):
     def describe(self):
         if not self.list.selection():return
         e=self.selected()
-        self.info.set('Includes: '+', '.join(FIELDS[k][0] for k in e['settings'])+f". Channel slots: {[c['index'] for c in e['channels']]}. Keys stay hidden.")
+        self.info.set(e.get('description','')+' Includes: '+', '.join(FIELDS[k][0] for k in e['settings'])+f". Channel slots: {[c['index'] for c in e['channels']]}. Keys stay hidden.")
 
     def preview(self):
         from compare_ui import preview
@@ -60,6 +61,14 @@ class LibraryPage(ttk.Frame):
         if self.app.snapshot is None:raise ValueError('Read a radio before comparing it with a profile.')
         from compare_ui import compare
         compare(self.app.root,[self.app.snapshot],self.selected())
+
+    def compatibility(self):
+        if self.app.snapshot is None:raise ValueError('Read a radio before checking compatibility.')
+        from compatibility import show
+        show(self.app.root,[self.app.snapshot],self.selected())
+
+    def editable(self, entry):
+        if entry.get('builtin'):raise ValueError('Built-in profiles are read-only. Load the Companion preset and use Save editor to make your own copy; server presets are setup references.')
 
     def choose_scope(self, settings, channels, suggested='', existing=None, naming=None):
         dialog=tk.Toplevel(self);dialog.title('Save reusable profile');dialog.transient(self.app.root);dialog.grab_set()
@@ -85,7 +94,7 @@ class LibraryPage(ttk.Frame):
         ttk.Spinbox(naming_row,from_=1,to=999999,textvariable=start,width=7).pack(side='left',padx=8)
         def save():
             try: ident=self.library.save(name.get(),{k:v for k,v in settings.items() if fields[k].get()},channels if include.get() else [],existing['id'] if existing else None,{'prefix':prefix.get(),'start':int(start.get())})
-            except Exception as exc:messagebox.showerror('Could not save',str(exc),parent=dialog);return
+            except Exception as exc:record_error('profiles',exc);messagebox.showerror('Could not save',str(exc),parent=dialog);return
             self.refresh(ident);dialog.destroy()
         ttk.Button(frame,text='Save profile',command=save).grid(row=row+3,column=2,sticky='e',pady=(12,0))
 
@@ -104,7 +113,7 @@ class LibraryPage(ttk.Frame):
         self.choose_scope(settings,channels,existing['name'] if existing else '',existing)
 
     def update_editor(self):
-        self.save_editor(self.selected())
+        entry=self.selected();self.editable(entry);self.save_editor(entry)
 
     def import_file(self):
         path=filedialog.askopenfilename(filetypes=[('JSON profiles','*.json')])
@@ -129,14 +138,17 @@ class LibraryPage(ttk.Frame):
     def export(self):
         e=self.selected();path=filedialog.asksaveasfilename(defaultextension='.json',filetypes=[('JSON profiles','*.json')])
         if path:
-            data=profile(e['settings'],e['channels']);data.update(naming=e['naming'],profile_name=e['name']);save_json(path,data)
+            data=profile(e['settings'],e['channels']);data.update(naming=e['naming'],profile_name=e['name'],target_role=e.get('target_role','companion'))
+            for key in ('description','cli_settings','advice','source'):
+                if key in e:data[key]=e[key]
+            save_json(path,data)
 
     def rename(self):
-        e=self.selected();name=simpledialog.askstring('Rename profile','Profile name:',initialvalue=e['name'],parent=self)
+        e=self.selected();self.editable(e);name=simpledialog.askstring('Rename profile','Profile name:',initialvalue=e['name'],parent=self)
         if name is not None:self.refresh(self.library.save(name,e['settings'],e['channels'],e['id']))
 
     def remove(self):
-        e=self.selected()
+        e=self.selected();self.editable(e)
         if messagebox.askyesno('Remove saved profile',f"Remove {e['name']} from the library? A local archive copy will be kept."):
             self.library.archive(e['id']);self.refresh()
 
