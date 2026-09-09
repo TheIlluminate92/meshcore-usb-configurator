@@ -73,7 +73,7 @@ class ChannelsUI(unittest.TestCase):
         self.assertIn(30,self.visible())
 
     def test_smallest_window_fits_and_hints_disable(self):
-        self.root.geometry('1180x880');self.root.update()
+        self.root.geometry('1100x800');self.root.update()
         editor=self.app.entries['multi_acks'].master
         self.assertGreaterEqual(editor.winfo_height(),editor.winfo_reqheight())
         self.assertGreaterEqual(editor.winfo_width(),editor.winfo_reqwidth())

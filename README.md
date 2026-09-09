@@ -52,7 +52,7 @@ The light interface uses a navy header, teal action buttons, hover/click help, h
 
 ## Recommendations and battery hints
 
-Every setting has a short suggestion beside a narrower profile input. Five small battery icons show **relative power cost within that setting**: more filled icons means greater cost, not remaining charge. A dash means minor or uncertain impact. These are qualitative app heuristics, not measured hours or additive scores. Radio hints describe transmissions, not idle consumption. Traffic, board, GPS duty cycle and battery determine real runtime. Recommendations never change values automatically. Keep frequency, bandwidth, SF and CR matched to your mesh.
+Every setting has a short suggestion beside a narrower profile input. Five small battery icons show **relative power cost within that setting**: more filled icons means greater cost, not remaining charge. Indicators are omitted where impact is minor, uncertain or unavailable; recommendations stay visible. These are qualitative app heuristics, not measured hours or additive scores. Radio hints describe transmissions, not idle consumption. Traffic, board, GPS duty cycle and battery determine real runtime. Recommendations never change values automatically. Keep frequency, bandwidth, SF and CR matched to your mesh.
 
 Radio airtime guidance follows [Semtech's LoRa FAQ](https://www.semtech.com/design-support/faq/faq-lora) and [modulation tradeoffs](https://www.semtech.com/design-support/faq/P100). Exact five-level thresholds are app heuristics, not Semtech ratings.
 
@@ -65,3 +65,5 @@ Existing channels remain visible. **Empty slots to add** exposes that many avail
 Requires a working Windows Bluetooth adapter, the installed Bleak dependency and BLE-enabled Companion firmware. A USB-only image cannot be made Bluetooth-capable by this app; see the [MeshCore FAQ](https://docs.meshcore.io/faq/). Pairing is handled by Windows, and PINs are not saved in profiles. The same protocol verification and identity checks apply over either transport. JSON stays the interchange format.
 
 Windows support libraries are installed in the local project. A scanner check on this PC reported Bluetooth unavailable/off, so a real BLE connection and write have not been tested. Discovery filtering, routing and failed-connection cleanup are tested with simulations. USB remains usable.
+
+The compact layout opens at 1180×820 and supports 1100×800. Suggestions align before smaller battery indicators, with no placeholder on unrelated settings.
