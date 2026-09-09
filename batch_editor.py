@@ -56,6 +56,7 @@ class SharedEditor:
         self.owner.document=document;self.owner.individual={};self.owner.invalidate_review()
         self.owner.shared_initialized=True
         self.owner.heading.set('Shared settings: Batch editor')
+        if hasattr(self.owner,'shared_edited'):self.owner.shared_edited()
         self.close();self.owner.individual_step()
 
 class IndividualWizard:

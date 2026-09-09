@@ -1,5 +1,14 @@
 # Changelog
 
+## Batch bug hunt — 2026-09-09
+
+- Fixed newly saved shared profiles missing from the batch picker; saving now refreshes the list and active name. Loading rechecks the library and reports removed/unreadable profiles clearly.
+- Marked edited shared settings in the picker so they are not mistaken for an unchanged saved profile.
+- USB Find now removes disconnected ports and their stale snapshots while retaining Bluetooth discoveries. New row IDs remain unique after removals.
+- Added a device-list scrollbar for larger fleets and keyboard focus when clicking device checkboxes.
+- Duplicate selection notifications no longer discard a valid review; actual checkbox changes still invalidate it.
+- Validation: 75 tests passed, including failed-port read continuation, refresh/identity-row handling, profile changes, selection guards and existing stop/failure checks. No hardware writes; live BLE and multi-radio writes remain unvalidated.
+
 ## Batch editor cleanup — 2026-09-09
 
 - Consolidated discovery into a header transport picker with Find and Read. Newly discovered devices are checked by default; Read tries all checked connections and continues past read failures.

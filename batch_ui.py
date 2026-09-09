@@ -22,6 +22,7 @@ class BatchWindow:
         self.busy=False;self.cancel=threading.Event();self.queue=queue.Queue()
         app.batch_window=self
         self.targets={};self.snapshots={};self.plans=None;self.controls=[]
+        self.next_target_id=0;self.checked_state=()
         self.window.protocol('WM_DELETE_WINDOW',self.close)
         f=ttk.Frame(self.window,padding=16);f.pack(fill='both',expand=True)
         footer=ttk.Frame(f);footer.pack(side='bottom',fill='x')
@@ -53,11 +54,14 @@ class BatchWindow:
         self.all_checked=tk.BooleanVar(value=False)
         self.master_check=ttk.Checkbutton(f,text='All devices',variable=self.all_checked,command=self.toggle_all)
         self.master_check.pack(anchor='w');self.controls.append(self.master_check)
-        self.tree=ttk.Treeview(f,columns=('port','name','status'),show='tree headings',selectmode='none',height=7)
+        device_area=ttk.Frame(f);device_area.pack(fill='both',expand=True,pady=(4,6))
+        self.tree=ttk.Treeview(device_area,columns=('port','name','status'),show='tree headings',selectmode='none',height=7)
         self.tree.column('#0',width=34,minwidth=34,stretch=False)
         for key,label,width in [('port','Connection',150),('name','Device',230),('status','Status',430)]:
             self.tree.heading(key,text=label);self.tree.column(key,width=width)
-        self.tree.pack(fill='both',expand=True,pady=(4,6))
+        device_scroll=ttk.Scrollbar(device_area,orient='vertical',command=self.tree.yview)
+        device_scroll.pack(side='right',fill='y');self.tree.configure(yscrollcommand=device_scroll.set)
+        self.tree.pack(fill='both',expand=True)
         self.tree.bind('<Button-1>',self.toggle_row)
         self.tree.bind('<space>',self.toggle_focused)
         self.tree.bind('<<TreeviewSelect>>',lambda _:self.selection_changed())
@@ -83,7 +87,9 @@ class BatchWindow:
         self.find_usb()
 
     def use_profile(self):
-        chosen=next(e for e in self.profile_choices if e['name']==self.profile_choice.get())
+        self.refresh_profiles()
+        chosen=next((e for e in self.profile_choices if e['name']==self.profile_choice.get()),None)
+        if chosen is None:raise ValueError('That saved profile is no longer available. Choose another profile.')
         self.document=copy.deepcopy(chosen)
         for key in ('name','latitude','longitude'):self.document['settings'].pop(key,None)
         self.shared_initialized=True;self.individual={};self.invalidate_review()
@@ -91,6 +97,14 @@ class BatchWindow:
         from comparison import profile_text
         self.set_details(profile_text(self.document))
         self.status.set('Profile loaded for checked radios. Individual names and positions stay separate. Review before applying.')
+
+    def refresh_profiles(self):
+        self.profile_choices=self.app.profile_page.library.entries()[0]
+        self.profile_box.configure(values=[e['name'] for e in self.profile_choices])
+
+    def shared_edited(self):
+        self.profile_choice.set(self.document['name']+' (edited)')
+        self.heading.set('Shared settings: '+self.document['name']+' (edited)')
 
     def toggle_all(self):
         if self.busy:return
@@ -101,7 +115,7 @@ class BatchWindow:
         if self.tree.identify_region(event.x,event.y) not in ('tree','cell'):return
         row=self.tree.identify_row(event.y)
         if not row or self.busy:return 'break'
-        self.tree.focus(row)
+        self.tree.focus_set();self.tree.focus(row)
         self.toggle_focused()
         return 'break'
 
@@ -114,7 +128,9 @@ class BatchWindow:
         return 'break'
 
     def selection_changed(self):
-        self.invalidate_review()
+        checked=tuple(self.tree.selection())
+        if checked!=self.checked_state:
+            self.invalidate_review();self.checked_state=checked
         selected=set(self.tree.selection());children=self.tree.get_children()
         self.all_checked.set(bool(children) and len(selected)==len(children))
         self.master_check.state(['alternate'] if selected and len(selected)!=len(children) else ['!alternate'])
@@ -140,12 +156,17 @@ class BatchWindow:
         self.invalidate_review()
         for port,name in targets:
             if port in self.targets:continue
-            ident=str(len(self.targets));self.targets[port]=ident
+            ident=str(self.next_target_id);self.next_target_id+=1;self.targets[port]=ident
             self.tree.insert('','end',iid=ident,text='☐',values=(port,name,'Not read'))
             self.tree.selection_add(ident)
         self.selection_changed()
 
-    def find_usb(self):self.add_targets(serial_ports())
+    def find_usb(self):
+        found=serial_ports();present={p for p,_ in found}
+        for port in list(self.targets):
+            if not port.startswith('ble:') and port not in present:
+                self.tree.delete(self.targets.pop(port));self.snapshots.pop(port,None)
+        self.add_targets(found)
     def find_ble(self):self.run(bluetooth_devices(),self.add_targets,'Scanning Bluetooth…')
     def select_all(self):self.tree.selection_set(self.tree.get_children())
     def selected(self):
@@ -234,6 +255,9 @@ class BatchWindow:
         library=self.app.profile_page.library
         ident=library.save(name,self.document['settings'],self.document.get('channels',[]),naming=self.document.get('naming'))
         self.app.profile_page.refresh(ident)
+        self.refresh_profiles()
+        self.document['name']=name.strip();self.profile_choice.set(name.strip())
+        self.heading.set('Shared settings: '+name.strip())
         self.status.set('Shared profile saved. Individual names and positions are kept out of it.')
 
     def set_details(self,text):

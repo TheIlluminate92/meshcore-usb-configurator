@@ -34,3 +34,54 @@ class BatchCleanup(unittest.TestCase):
                 batch.close()
         finally:
             app.pending_count=0;app.close()
+
+class BatchRegression(unittest.TestCase):
+    def setUp(self):
+        self.folder=tempfile.TemporaryDirectory()
+        self.root=tk.Tk();self.app=App(self.root)
+        self.app.profile_page.library=ProfileLibrary(Path(self.folder.name))
+        with patch('batch_ui.serial_ports',return_value=[('COM4','A'),('COM5','B')]):
+            self.batch=BatchWindow(self.app)
+        self.root.update()
+
+    def tearDown(self):
+        self.batch.busy=False;self.batch.close();self.app.pending_count=0;self.app.close();self.folder.cleanup()
+
+    def test_usb_refresh_drops_stale_snapshot_without_row_collision(self):
+        b=self.batch;b.snapshots['COM4']={'old':True}
+        b.add_targets([('ble:ABC','Bluetooth')])
+        with patch('batch_ui.serial_ports',return_value=[('COM5','B'),('COM6','C')]):b.find_usb()
+        self.assertNotIn('COM4',b.targets);self.assertNotIn('COM4',b.snapshots)
+        self.assertEqual(set(b.targets),{'COM5','COM6','ble:ABC'})
+        self.assertEqual(len(set(b.targets.values())),3)
+
+    def test_saved_profile_refresh_edit_indicator_and_removed_profile(self):
+        b=self.batch;b.document['settings']={'bandwidth':125}
+        with patch('batch_ui.simpledialog.askstring',return_value='Fresh'):b.save_shared()
+        self.assertIn('Fresh',b.profile_box.cget('values'))
+        self.assertEqual(b.profile_choice.get(),'Fresh')
+        b.shared_edited();self.assertIn('(edited)',b.profile_choice.get())
+        b.profile_choice.set('Fresh');b.use_profile()
+        self.assertEqual(b.document['settings'],{'bandwidth':125})
+        ident=b.profile_choices[0]['id'];self.app.profile_page.library.archive(ident)
+        with self.assertRaisesRegex(ValueError,'no longer available'):b.use_profile()
+
+    def test_unchanged_selection_event_preserves_review(self):
+        b=self.batch;b.plans=['reviewed'];b.selection_changed()
+        self.assertEqual(b.plans,['reviewed'])
+        b.tree.focus('0');b.toggle_focused()
+        self.assertIsNone(b.plans)
+
+    def test_read_continues_after_failed_port_and_counts_results(self):
+        import asyncio
+        from unittest.mock import AsyncMock
+        from test_history_compare import radio
+        b=self.batch
+        self.app.history.remember=lambda snapshot:None
+        def run(operation,callback,status):callback(asyncio.run(operation))
+        reader=AsyncMock(side_effect=[RuntimeError('Port busy'),radio('COM5','b')])
+        with patch.object(b,'run',side_effect=run),patch('batch_ui.read_device',reader):b.read_selected()
+        self.assertEqual(reader.await_count,2)
+        self.assertNotIn('COM4',b.snapshots);self.assertIn('COM5',b.snapshots)
+        self.assertIn('1 readable radios',b.device_summary.get())
+        self.assertEqual(b.progress_ports,['COM4','COM5'])
