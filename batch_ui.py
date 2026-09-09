@@ -25,26 +25,52 @@ class BatchWindow:
         self.window.protocol('WM_DELETE_WINDOW',self.close)
         f=ttk.Frame(self.window,padding=16);f.pack(fill='both',expand=True)
         footer=ttk.Frame(f);footer.pack(side='bottom',fill='x')
+        header=ttk.Frame(f);header.pack(fill='x',pady=(0,10))
+        ttk.Label(header,text='Batch editor',font=('Segoe UI',16,'bold')).pack(side='left')
+        self.discovery=tk.StringVar(value='USB')
+        self.discovery_box=ttk.Combobox(header,textvariable=self.discovery,values=['USB','Bluetooth'],state='readonly',width=11)
+        self.discovery_box.pack(side='right',padx=6)
+        self.controls.append(self.discovery_box)
+        def button(parent,title,action):
+            b=ttk.Button(parent,text=title,command=lambda:self.guard(action));b.pack(side='left',padx=(0,6));self.controls.append(b);return b
+        discovery_actions=ttk.Frame(header);discovery_actions.pack(side='right')
+        button(discovery_actions,'Find',lambda:self.find_ble() if self.discovery.get()=='Bluetooth' else self.find_usb())
+        button(discovery_actions,'Read',self.read_selected)
         self.heading=tk.StringVar(value='Shared settings: '+self.document['name'])
-        ttk.Label(f,textvariable=self.heading,font=('Segoe UI',16,'bold')).pack(anchor='w')
-        ttk.Label(f,text='Select → Read → Edit shared settings → Individual names → Review → Apply').pack(anchor='w',pady=8)
-        bar=ttk.Frame(f);bar.pack(fill='x')
-        for title,fn in [('Find USB',self.find_usb),('Find Bluetooth',self.find_ble),('Select all',self.select_all),('Read selected',self.read_selected),('Review changes',self.review),('Apply reviewed',self.apply)]:
-            b=ttk.Button(bar,text=title,command=lambda action=fn:self.guard(action));b.pack(side='left',padx=(0,5));self.controls.append(b)
-            if title=='Apply reviewed':self.apply_button=b;b.configure(state='disabled')
-        editbar=ttk.Frame(f);editbar.pack(fill='x',pady=(8,0))
-        for title,fn in [('Edit shared settings…',self.edit_shared),('Individual names & positions…',self.individual_step),('Save shared profile…',self.save_shared),('Compare devices',self.compare)]:
-            button=ttk.Button(editbar,text=title,command=lambda action=fn:self.guard(action));button.pack(side='left',padx=(0,8));self.controls.append(button)
-        self.tree=ttk.Treeview(f,columns=('port','name','status'),show='headings',selectmode='extended',height=8)
-        for key,label,width in [('port','Connection',200),('name','Device',220),('status','Status',480)]:
+        profilebar=ttk.Frame(f);profilebar.pack(fill='x',pady=(0,8))
+        ttk.Label(profilebar,text='Profile for checked radios').pack(side='left',padx=(0,8))
+        self.profile_choices=self.app.profile_page.library.entries()[0]
+        self.profile_choice=tk.StringVar(value=self.document['name'])
+        self.profile_box=ttk.Combobox(profilebar,textvariable=self.profile_choice,values=[e['name'] for e in self.profile_choices],state='readonly',width=28)
+        self.profile_box.pack(side='left',padx=(0,8));self.controls.append(self.profile_box)
+        self.profile_box.bind('<<ComboboxSelected>>',lambda _:self.guard(self.use_profile))
+        button(profilebar,'Edit shared',self.edit_shared)
+        button(profilebar,'Compare',self.compare)
+        more=ttk.Menubutton(profilebar,text='More');more.pack(side='left');self.controls.append(more)
+        menu=tk.Menu(more,tearoff=False);more.configure(menu=menu)
+        menu.add_command(label='Individual names & positions…',command=lambda:self.guard(self.individual_step))
+        menu.add_command(label='Save shared profile…',command=lambda:self.guard(self.save_shared))
+        self.all_checked=tk.BooleanVar(value=False)
+        self.master_check=ttk.Checkbutton(f,text='All devices',variable=self.all_checked,command=self.toggle_all)
+        self.master_check.pack(anchor='w');self.controls.append(self.master_check)
+        self.tree=ttk.Treeview(f,columns=('port','name','status'),show='tree headings',selectmode='none',height=7)
+        self.tree.column('#0',width=34,minwidth=34,stretch=False)
+        for key,label,width in [('port','Connection',150),('name','Device',230),('status','Status',430)]:
             self.tree.heading(key,text=label);self.tree.column(key,width=width)
-        self.tree.pack(fill='both',expand=True,pady=12)
-        self.tree.bind('<<TreeviewSelect>>',lambda _:self.invalidate_review())
-        ttk.Label(f,text='Use Ctrl/Shift to select devices. Every selected device must pass review. A failed write stops the batch.').pack(anchor='w')
-        details=ttk.Frame(f);details.pack(fill='both',expand=True,pady=8)
-        self.details=tk.Text(details,height=10,wrap='word',font=('Consolas',10),state='disabled')
+        self.tree.pack(fill='both',expand=True,pady=(4,6))
+        self.tree.bind('<Button-1>',self.toggle_row)
+        self.tree.bind('<space>',self.toggle_focused)
+        self.tree.bind('<<TreeviewSelect>>',lambda _:self.selection_changed())
+        self.device_summary=tk.StringVar(value='Check devices, then Read. Each checked connection is tried; unreadable devices are skipped during reading.')
+        ttk.Label(f,textvariable=self.device_summary,wraplength=840).pack(anchor='w',pady=(0,6))
+        details=ttk.LabelFrame(f,text='Review changes / results',padding=6);details.pack(fill='both',expand=True,pady=(0,8))
+        self.details=tk.Text(details,height=5,wrap='word',font=('Consolas',10),state='disabled')
         scroll=ttk.Scrollbar(details,command=self.details.yview);self.details.configure(yscrollcommand=scroll.set)
         scroll.pack(side='right',fill='y');self.details.pack(fill='both',expand=True)
+        self.set_details('Choose a profile or edit shared settings, then Review. Proposed changes appear here before anything is written.')
+        actions=ttk.Frame(footer);actions.pack(fill='x',pady=(0,6))
+        button(actions,'Review',self.review)
+        self.apply_button=button(actions,'Apply',self.apply);self.apply_button.configure(state='disabled')
         self.status=tk.StringVar(value='Find and select the devices you want to configure.')
         ttk.Label(footer,textvariable=self.status,wraplength=850).pack(anchor='w')
         self.progress_value=tk.DoubleVar(value=0)
@@ -55,6 +81,51 @@ class BatchWindow:
         self.stop=ttk.Button(footer,text='Stop after current device',command=self.cancel.set,state='disabled');self.stop.pack(anchor='e',pady=(8,0))
         self.poll_id=self.window.after(100,self.poll)
         self.find_usb()
+
+    def use_profile(self):
+        chosen=next(e for e in self.profile_choices if e['name']==self.profile_choice.get())
+        self.document=copy.deepcopy(chosen)
+        for key in ('name','latitude','longitude'):self.document['settings'].pop(key,None)
+        self.shared_initialized=True;self.individual={};self.invalidate_review()
+        self.heading.set('Shared settings: '+self.document['name'])
+        from comparison import profile_text
+        self.set_details(profile_text(self.document))
+        self.status.set('Profile loaded for checked radios. Individual names and positions stay separate. Review before applying.')
+
+    def toggle_all(self):
+        if self.busy:return
+        self.tree.selection_set(self.tree.get_children() if self.all_checked.get() else ())
+        self.selection_changed()
+
+    def toggle_row(self,event):
+        if self.tree.identify_region(event.x,event.y) not in ('tree','cell'):return
+        row=self.tree.identify_row(event.y)
+        if not row or self.busy:return 'break'
+        self.tree.focus(row)
+        self.toggle_focused()
+        return 'break'
+
+    def toggle_focused(self,event=None):
+        row=self.tree.focus()
+        if row and not self.busy:
+            if row in self.tree.selection():self.tree.selection_remove(row)
+            else:self.tree.selection_add(row)
+            self.selection_changed()
+        return 'break'
+
+    def selection_changed(self):
+        self.invalidate_review()
+        selected=set(self.tree.selection());children=self.tree.get_children()
+        self.all_checked.set(bool(children) and len(selected)==len(children))
+        self.master_check.state(['alternate'] if selected and len(selected)!=len(children) else ['!alternate'])
+        for row in children:self.tree.item(row,text='☑' if row in selected else '☐')
+        row=self.tree.focus()
+        if row:
+            port,name,status=self.tree.item(row,'values')
+            snapshot=self.snapshots.get(port)
+            brief=f'{name} · {port} · {status}'
+            if snapshot:brief+=f" · {len(snapshot['settings'])} settings · {len(snapshot.get('channels',[]))} channels"
+            self.device_summary.set(brief)
 
     def guard(self,action):
         if self.busy:return
@@ -70,7 +141,9 @@ class BatchWindow:
         for port,name in targets:
             if port in self.targets:continue
             ident=str(len(self.targets));self.targets[port]=ident
-            self.tree.insert('','end',iid=ident,values=(port,name,'Not read'))
+            self.tree.insert('','end',iid=ident,text='☐',values=(port,name,'Not read'))
+            self.tree.selection_add(ident)
+        self.selection_changed()
 
     def find_usb(self):self.add_targets(serial_ports())
     def find_ble(self):self.run(bluetooth_devices(),self.add_targets,'Scanning Bluetooth…')
@@ -124,7 +197,8 @@ class BatchWindow:
         def done(results):
             self.snapshots.update(results)
             for p,s in results.items():self.update(p,'Read complete'+(' · recognized from '+s['recognized_from'] if s.get('recognized_from') else ''),s['settings'].get('name','?'))
-            self.status.set(f'{len(results)} of {len(ports)} devices read. Review the selected devices next.')
+            self.status.set(f'{len(results)} of {len(ports)} devices read. Uncheck failed devices before review.')
+            self.device_summary.set(f'{len(results)} readable radios · {len(ports)-len(results)} unreadable connections')
         self.run(read(),done,'Reading selected devices…')
 
     def start_progress(self,ports):
@@ -216,7 +290,7 @@ class BatchWindow:
                 message=self.queue.get_nowait()
                 if message[0]=='progress':self.update(message[1],message[2]);continue
                 _,callback,result,error=message;self.busy=False
-                for b in self.controls:b.configure(state='normal')
+                for b in self.controls:b.configure(state='readonly' if isinstance(b,ttk.Combobox) else 'normal')
                 self.stop.configure(state='disabled');self.invalidate_review()
                 if error:
                     self.snapshots.clear();self.app.invalidate();self.status.set(error)

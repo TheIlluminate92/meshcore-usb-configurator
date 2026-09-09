@@ -1,5 +1,13 @@
 # Changelog
 
+## Batch editor cleanup — 2026-09-09
+
+- Consolidated discovery into a header transport picker with Find and Read. Newly discovered devices are checked by default; Read tries all checked connections and continues past read failures.
+- Added per-device checkboxes and a master checkbox; selection is locked during operations.
+- Added a saved-profile picker for shared settings and naming defaults. Personal names and coordinates remain in the individual step.
+- Kept Edit shared and Compare visible; moved naming and saving into More. Review and Apply sit beside a smaller labeled review/results area.
+- Validation: 71 tests pass, including checkbox behavior, profile scope and minimum batch-window layout. Packaged executable startup passed. No hardware writes.
+
 ## Equal columns on settings pages — 2026-09-09
 
 - Applied equal-width columns to Device & radio, Location & GPS, Contact discovery and Telemetry. Device values and setting labels now wrap, removing the fixed-width truncation. Suggestions and battery symbols share a reserved column.
