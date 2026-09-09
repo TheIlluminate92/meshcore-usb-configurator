@@ -25,9 +25,6 @@ build/
 !.env.example
 
 build_tools/
-build/
-dist/
-*.spec
 build_wheels/
 smoke-data/
 smoke-result.json

@@ -1,5 +1,11 @@
 # Changelog
 
+## Documentation and repository cleanup — 2026-09-09
+
+- Rewrote the README around the current portable app and simplified batch controls; removed obsolete button names, duplicated instructions and superseded test counts.
+- Consolidated architecture/handoff notes and added VALIDATION.md with confirmed checks and outstanding hardware/update validation.
+- Removed duplicate ignore rules. Documentation-only maintenance; no application version bump or portable EXE replacement.
+
 ## Portable app, appearance and GitHub updates — 0.5.0
 
 - Portable EXE with adjacent User Data; hidden supporting folder keeps the executable prominent. Local handoff includes copies of existing snapshots/reports and the latest desktop history.
