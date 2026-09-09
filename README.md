@@ -82,3 +82,15 @@ Select a saved profile and choose **Apply profile to multiple devices**:
 A failed device stops the batch; subsequent devices are marked Not attempted. Stop takes effect between devices, so an in-progress operation can finish and report its result. Completed changes are not rolled back. Batch summaries and individual apply reports remain local in `reports/`. A no-change target is labeled No changes at review, not freshly verified. Read again before another batch. Changing selection or rereading invalidates the previous review.
 
 Validation: 44 selected regression tests pass, including 10 new profile/batch tests covering persistence, archives, unsupported targets, duplicate identities, cancellation, no-op labels and partial failure. Additional UI checks covered field-selection defaults, saved-profile loading, two simulated devices and close-during-operation handling. No real multi-device writes were performed. BLE hardware validation is still pending; the existing local BLE dependency was inaccessible to this session, so its separate scanner test was excluded from this run.
+
+## Batch editor with individual names
+
+The main **Batch editor** button works without creating a saved profile first. Find and select the plugged-in devices, then **Read selected**. **Edit shared settings** opens a form containing settings reported by every selected radio. Checked fields use one value across the batch; unchecked fields stay unchanged. Initial values come from the selected saved profile, or the first device for a new batch. Each board's limits still apply.
+
+Shared channels can be left unchanged, taken from the profile, or copied from the first device. Copying all slots includes empty slots and may clear other devices' channels, explicitly shown at review.
+
+**Next: individual devices** opens a page for each radio showing its connection, model, current name and abbreviated public identity. Keep or edit each name, or use a prefix to number them (Tracker-01, Tracker-02, etc.). Names must be distinct within the selection. Optional fixed coordinates are set per device only when GPS is off. Private identities/keys are never copied. Personal name/position values from saved profiles are omitted from the shared batch document; this walkthrough handles them instead.
+
+Previous/Next only stage edits. Finish opens the combined shared-plus-individual review, then **Apply reviewed** performs the writes. Selecting another device or editing shared values invalidates approval. Rereading clears staged individual values. Cancelling the naming popup discards its draft without writing. Individual values are tied to the device identity, not the COM port. **Save shared profile** saves reusable shared settings without the individual names/positions.
+
+Validation: 50 selected regression tests pass, including shared-plus-individual plan composition, duplicate names, wrong override fields, per-device coordinates, numbering through two simulated radios, cancellation and supported-field filtering. Real multi-radio writing remains a bench-validation task.

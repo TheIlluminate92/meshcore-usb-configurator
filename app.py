@@ -52,6 +52,7 @@ class App:
         self.action_buttons = {}
         self.button(row, 'Find devices', self.scan)
         self.button(row, 'Read device', self.read)
+        self.button(row, 'Batch editor', self.open_batch)
         self.identity = tk.StringVar(value='No device read. Connect a Companion USB device, then select its port.')
         ttk.Label(connection, textvariable=self.identity, wraplength=1030, style='Muted.TLabel').pack(anchor='w', pady=(10, 4))
         ttk.Label(connection, textvariable=self.support_summary, style='Caption.TLabel').pack(anchor='w')
@@ -155,6 +156,10 @@ class App:
         if text in HELP:
             Tooltip(b, text, HELP[text])
 
+    def open_batch(self):
+        from batch_ui import BatchWindow
+        BatchWindow(self)
+
     def change_transport(self):
         self.port.set('')
         self.invalidate()
@@ -215,7 +220,7 @@ class App:
                 channel_count += 1
         self.pending.set(f'{count} setting changes  ·  {channel_count} channel slots pending' if count or channel_count else ('Up to date  ·  No pending edits' if self.snapshot else 'Read a radio to begin'))
         for name, button in self.action_buttons.items():
-            enabled = not self.busy and (name in ('Read device', 'Find devices') or self.snapshot is not None)
+            enabled = not self.busy and (name in ('Read device', 'Find devices', 'Batch editor') or self.snapshot is not None)
             if name == 'Review & apply':
                 enabled = enabled and bool(count or channel_count)
             button.configure(state='normal' if enabled else 'disabled')

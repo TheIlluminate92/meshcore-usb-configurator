@@ -31,15 +31,28 @@ def plan_device(snapshot, document):
         raise ValueError('Device identity was not reported.')
     return copy.deepcopy({'port':snapshot['port'],'baseline':snapshot,'settings':delta,'channels':channels})
 
-def plan_many(snapshots, document):
+def plan_many(snapshots, document, individual=None):
     plans=[]
     seen=set()
+    names=set()
     for snapshot in snapshots:
         identity=snapshot['self_info'].get('public_key')
         if identity in seen:
             raise ValueError('The same radio is selected more than once. Select only one connection per radio.')
         seen.add(identity)
-        plans.append(plan_device(snapshot,document))
+        target=copy.deepcopy(document)
+        if individual is not None:
+            if identity not in individual:
+                raise ValueError('Complete the individual-device step for every selected radio.')
+            values=validate(individual[identity])
+            if set(values)-{'name','latitude','longitude'}:
+                raise ValueError('Individual values may only contain name and fixed coordinates.')
+            if 'name' not in values:raise ValueError('Every device needs a name.')
+            name=values['name'].strip().casefold()
+            if name in names:raise ValueError('Each selected device must have a different name.')
+            names.add(name)
+            target['settings'].update(values)
+        plans.append(plan_device(snapshot,target))
     if not plans: raise ValueError('Select and read at least one device.')
     return plans
 
