@@ -1,5 +1,12 @@
 # Changelog
 
+## Portable app, appearance and GitHub updates — 0.5.0
+
+- Portable EXE with adjacent User Data; hidden supporting folder keeps the executable prominent. Local handoff includes copies of existing snapshots/reports and the latest desktop history.
+- Light/Dark/System choice, saved window placement, clearer text/symbol status indicators and battery symbols before advice. Theme covers settings, batch dialogs, text and comparison tables.
+- Explicit GitHub release check/download/install with private-repository token entry, SHA-256 validation, cross-host credential stripping, previous-EXE backup and deferred replacement after exit. Tokens are never stored or bundled.
+- Added Windows release workflow triggered by version updates; publishes EXE and portable ZIP after tests. Live private-release download/install needs authentication and a published newer release to validate end to end.
+
 ## Batch bug hunt — 2026-09-09
 
 - Fixed newly saved shared profiles missing from the batch picker; saving now refreshes the list and active name. Loading rechecks the library and reports removed/unreadable profiles clearly.

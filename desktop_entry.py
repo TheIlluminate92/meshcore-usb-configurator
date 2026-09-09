@@ -23,5 +23,7 @@ try:
     else:
         root.mainloop()
 except Exception:
-    (original_directory / 'startup-error.log').write_text(traceback.format_exc(), encoding='utf-8')
+    log_directory=Path(sys.executable).resolve().parent/'User Data' if getattr(sys,'frozen',False) else original_directory
+    log_directory.mkdir(parents=True,exist_ok=True)
+    (log_directory/'startup-error.log').write_text(traceback.format_exc(), encoding='utf-8')
     raise

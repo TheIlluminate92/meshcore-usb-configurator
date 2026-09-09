@@ -34,11 +34,22 @@ class App:
         root.title('MeshCore Configurator — USB & Bluetooth')
         root.geometry('1180x820')
         root.minsize(1100, 800)
-        apply_theme(root)
+        from preferences import load_preferences
+        self.preferences=load_preferences(ROOT/'preferences.json')
+        if self.preferences.get('geometry'):
+            import re
+            w,h,x,y=map(int,re.findall(r'\d+',self.preferences['geometry']))
+            root.geometry(f'{min(w,max(1100,root.winfo_screenwidth()))}x{min(h,max(800,root.winfo_screenheight()-60))}+{min(x,max(0,root.winfo_screenwidth()-1100))}+{min(y,max(0,root.winfo_screenheight()-800))}')
+        apply_theme(root,self.preferences.get('theme','System'))
         outer = ttk.Frame(root, padding=12, style='Root.TFrame')
         outer.pack(fill='both', expand=True)
         header = ttk.Frame(outer, padding=(20, 10), style='Header.TFrame')
         header.pack(fill='x', pady=(0, 10))
+        ttk.Button(header,text='App updates',command=self.open_updates).pack(side='right',padx=(8,0))
+        self.theme_choice=tk.StringVar(value=self.preferences.get('theme','System'))
+        theme_box=ttk.Combobox(header,textvariable=self.theme_choice,values=['Light','Dark','System'],state='readonly',width=8)
+        theme_box.pack(side='right')
+        theme_box.bind('<<ComboboxSelected>>',lambda _:self.change_theme())
         ttk.Label(header, text='MeshCore  /  Device Configurator', style='Title.TLabel').pack(anchor='w')
         ttk.Label(header, text='01  Connect & read     →     02  Edit profile     →     03  Review & verify', style='Subtitle.TLabel').pack(anchor='w', pady=(8, 0))
         connection = ttk.Frame(outer, padding=(18, 12))
@@ -154,11 +165,40 @@ class App:
         self.button(actions, 'Save device snapshot', self.save_snapshot)
         self.button(actions, 'Review & apply', self.apply)
         self.status = tk.StringVar(value='Ready. No configuration has been written.')
+        self.state_badge=tk.StringVar(value='○ Ready')
+        ttk.Label(row,textvariable=self.state_badge,style='Muted.TLabel').pack(side='right',padx=8)
+        self.status.trace_add('write',lambda *_:self.refresh_state_badge())
         ttk.Label(footer, textvariable=self.status, wraplength=1010, style='Status.TLabel').pack(anchor='w')
+        root.bind('<Map>',lambda event:self.theme_new_window(event),add='+')
+        root.after_idle(self.change_theme)
         root.protocol('WM_DELETE_WINDOW', self.close)
         self.poll_id = root.after(100, self.poll)
         self.scan()
         self.edited()
+
+    def refresh_state_badge(self):
+        value=self.status.get().lower()
+        if any(word in value for word in ('failed','error','denied')):badge='! Needs attention'
+        elif 'verified:' in value:badge='✓ Verified'
+        elif self.busy:badge='↻ Working'
+        elif self.snapshot:badge='✓ Read · ready to edit'
+        else:badge='○ Ready'
+        self.state_badge.set(badge)
+
+    def theme_new_window(self,event):
+        if isinstance(event.widget,tk.Toplevel):self.root.after_idle(lambda:self.change_theme(save=False))
+
+    def change_theme(self,save=True):
+        apply_theme(self.root,self.theme_choice.get())
+        if save:
+            from preferences import save_preferences
+            save_preferences(ROOT/'preferences.json',self.theme_choice.get(),self.root.geometry())
+
+    def open_updates(self):
+        if self.busy or (self.batch_window and self.batch_window.window.winfo_exists()):
+            messagebox.showinfo('App updates','Finish the device operation and close the batch editor first.',parent=self.root);return
+        from update_ui import UpdateWindow
+        UpdateWindow(self)
 
     def button(self, frame, text, command):
         def guarded():
@@ -488,6 +528,8 @@ class App:
             messagebox.showinfo('Operation in progress', 'Wait for the device operation to finish before closing.')
         else:
             if not self.confirm_discard():return
+            from preferences import save_preferences
+            save_preferences(ROOT/'preferences.json',self.theme_choice.get(),self.root.geometry())
             self.root.after_cancel(self.poll_id)
             self.root.destroy()
 

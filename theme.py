@@ -6,7 +6,7 @@ INK = '#142b43'
 MUTED = '#52667c'
 ACCENT = '#007f79'
 
-def apply_theme(root):
+def apply_light(root):
     root.configure(background=BG)
     root.option_add('*Font', ('Segoe UI', 10))
     root.option_add('*TCombobox*Listbox.font', ('Segoe UI', 10))
@@ -39,4 +39,73 @@ def apply_theme(root):
     style.configure('TNotebook.Tab', padding=(12, 9), background='#dfe8f0', foreground=MUTED, font=('Segoe UI', 10))
     style.map('TNotebook.Tab', background=[('selected', 'white'), ('active', '#e8eff5')], foreground=[('selected', ACCENT)])
     style.configure('TSeparator', background='#e1e9f1')
+    return style
+
+
+def system_dark():
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER,r'Software\Microsoft\Windows\CurrentVersion\Themes\Personalize') as key:
+            return winreg.QueryValueEx(key,'AppsUseLightTheme')[0]==0
+    except (ImportError,OSError):return False
+
+def apply_theme(root,mode='Light'):
+    import tkinter as tk
+    dark=mode=='Dark' or (mode=='System' and system_dark())
+    style=apply_light(root)
+    bg='#111922' if dark else BG
+    panel='#1b2633' if dark else 'white'
+    field='#243344' if dark else '#f8fafc'
+    ink='#e5edf5' if dark else INK
+    muted='#b2c0cf' if dark else MUTED
+    border='#46586b' if dark else '#cbd8e5'
+    for name in ('TLabelframe','TLabelframe.Label','TCheckbutton','TRadiobutton','TMenubutton'):
+        style.configure(name,background=panel,foreground=ink)
+        style.map(name,background=[('active',field)],foreground=[('disabled',muted)])
+    style.configure('TSpinbox',fieldbackground=field,background=field,foreground=ink,arrowcolor=ink)
+    style.map('TSpinbox',fieldbackground=[('disabled',field),('readonly',field)],foreground=[('disabled',muted),('readonly',ink)])
+    for name in ('TEntry','TCombobox'):
+        style.configure(name,foreground=ink,insertcolor=ink,arrowcolor=ink)
+        style.configure('Changed.'+name,foreground=ink)
+    if dark:
+        style.configure('.',background=panel,foreground=ink)
+        for name in ('TFrame','TLabel','TLabelframe','TLabelframe.Label','TCheckbutton','TRadiobutton','TMenubutton'):
+            style.configure(name,background=panel,foreground=ink)
+        style.configure('Root.TFrame',background=bg)
+        for name in ('Muted.TLabel','Caption.TLabel','Note.TLabel'):style.configure(name,foreground=muted)
+        style.configure('Status.TLabel',background=bg,foreground=muted)
+        style.configure('Pending.TLabel',background=bg,foreground='#6dd8cb')
+        style.configure('TButton',background=field,foreground=ink,bordercolor=border)
+        style.map('TButton',background=[('active','#364c62')],foreground=[('disabled','#8395a6')])
+        style.configure('Help.TButton',background=field,foreground='#8dd7ed')
+        for name in ('TEntry','TCombobox','TSpinbox'):
+            style.configure(name,fieldbackground=field,background=field,foreground=ink,bordercolor=border,insertcolor=ink,arrowcolor=ink)
+            style.map(name,fieldbackground=[('disabled','#202b37'),('readonly',field)],foreground=[('disabled','#91a1b2'),('readonly',ink)])
+            style.configure('Changed.'+name,fieldbackground='#53472d',foreground='#ffedb0')
+            style.map('Changed.'+name,fieldbackground=[('disabled','#3d382d'),('readonly','#53472d'),('!disabled','#53472d')])
+        style.configure('TNotebook',background=bg)
+        style.configure('TNotebook.Tab',background=field,foreground=muted)
+        style.map('TNotebook.Tab',background=[('selected',panel),('active','#364c62')],foreground=[('selected','#6dd8cb')])
+        for name in ('TCheckbutton','TRadiobutton','TMenubutton'):
+            style.map(name,background=[('active',field)],foreground=[('disabled','#91a1b2')])
+    style.configure('Treeview',background=panel,fieldbackground=panel,foreground=ink,rowheight=26,bordercolor=border)
+    style.configure('Treeview.Heading',background=field,foreground=ink,relief='flat')
+    style.map('Treeview',background=[('selected','#28556b')],foreground=[('selected','white')])
+    for option,value in [('background',field),('foreground',ink),('selectBackground','#28556b'),('selectForeground','white')]:
+        root.option_add('*TCombobox*Listbox.'+option,value)
+    def visit(widget):
+        try:
+            if isinstance(widget,(tk.Tk,tk.Toplevel)):widget.configure(background=bg)
+            elif isinstance(widget,tk.Text):widget.configure(background=panel,foreground=ink,insertbackground=ink,selectbackground='#28556b',selectforeground='white')
+            elif isinstance(widget,tk.Canvas):
+                old=widget.cget('background');widget.configure(background=panel)
+                for item in widget.find_all():
+                    if widget.type(item)=='rectangle' and widget.itemcget(item,'fill') in ('white',old):widget.itemconfigure(item,fill=panel)
+            elif isinstance(widget,tk.Menu):widget.configure(background=panel,foreground=ink,activebackground=field,activeforeground=ink)
+            elif isinstance(widget,ttk.Treeview):
+                widget.tag_configure('different',background='#55472a' if dark else '#fff0cb',foreground=ink)
+                widget.tag_configure('missing',background='#57333a' if dark else '#f9dede',foreground=ink)
+            for child in widget.winfo_children():visit(child)
+        except tk.TclError:pass
+    visit(root)
     return style

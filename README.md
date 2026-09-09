@@ -1,6 +1,14 @@
-# MeshCore Configurator — USB & Bluetooth
+# MeshCore Configurator — portable Windows app
 
-For the standalone Windows build, double-click **MeshCore Configurator.exe**; Python and a command window are not required. The packaged app stores profiles, history and reports under `%LOCALAPPDATA%/MeshCore Configurator`. Existing source-app profiles remain in the original `profiles` folder and can be imported through Saved profiles.
+Open **! MeshCore Configurator.exe** inside the portable folder. Move or back up the **whole folder** to carry your profiles, history, snapshots, reports and appearance preferences with it. No Python installation is required. The supporting **User Data** folder is hidden in Explorer by default to leave the app visible at the top level. Turn on Show hidden items if you want to inspect it. Keep the portable folder somewhere writable, such as Documents or a USB drive.
+
+The header has Light / Dark / System and App updates. Theme and window placement are remembered. Battery symbols precede the guidance they describe. Status indicators include words as well as symbols.
+
+**App updates** checks this private GitHub repository's latest published stable release. Enter a GitHub token with Contents: read permission for the repository; it is held only for that dialog and never saved or bundled. After you approve Install & restart, the app verifies the GitHub asset SHA-256 digest, closes, and replaces only the EXE. A previous EXE and update.log are retained under User Data/Updates. If replacement fails, the existing executable remains; inspect update.log. Updates are blocked while device/batch work is active. A newer GitHub source commit alone is not an update: a release asset must finish publishing.
+
+Developers: increase app_version.py and push to main to run the Windows release workflow. It tests and builds the EXE, then publishes the versioned release and a portable ZIP. Existing version assets are never overwritten. The repository stays private; no credential is shipped in the binary. Local source runs retain their existing project data paths.
+
+For the standalone Windows build, double-click **MeshCore Configurator.exe**; Python and a command window are not required. The packaged app stores its files in the adjacent `User Data` folder. Existing source-app profiles remain in the original `profiles` folder and can be imported through Saved profiles.
 
 For the source version, double-click **Start Configurator.cmd**. The launcher starts Python without a persistent command window. Choose **USB** or **Bluetooth**, click **Find devices**, select your radio, then **Read device**. Close other browser/phone connections first. Startup errors are shown in a dialog and saved in local `startup-error.log`.
 

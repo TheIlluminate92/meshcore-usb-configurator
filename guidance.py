@@ -57,14 +57,16 @@ class BatteryHint(ttk.Frame):
         self.update_value('')
 
     def update_value(self, value, available=True):
+        surface=ttk.Style(self).lookup('TFrame','background') or 'white'
+        self.canvas.configure(background=surface)
         self.canvas.delete('all')
         level = impact(self.key, value) if available else None
         if level is None:
             self.canvas.pack_forget()
             return
-        self.canvas.pack(side='right' if self.roomy else 'left', anchor='w', padx=(0, 0) if self.roomy else (8, 0))
+        self.canvas.pack(side='left', anchor='w', before=self.label, padx=(0, 8))
         color = '#b45e36' if level >= 4 else '#007f79'
         for i in range(5):
             x = i*11+1
-            self.canvas.create_rectangle(x,5,x+8,17,outline='#96a7b6',fill=color if i<level else 'white')
+            self.canvas.create_rectangle(x,5,x+8,17,outline='#96a7b6',fill=color if i<level else surface)
             self.canvas.create_rectangle(x+2,3,x+6,5,outline='#96a7b6',fill='#96a7b6')
