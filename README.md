@@ -107,3 +107,17 @@ Setting dropdowns in the main and shared batch editors open when clicking anywhe
 - The local inaccessible Bluetooth dependency was replaced with a freshly extracted project-local copy. The launcher prefers `bluetooth_libs/` when present; downloaded dependencies stay excluded from Git. Normal Windows setup still installs requirements into the virtual environment.
 
 Current validation: all 60 tests pass, including scanner filtering and the new regression cases. A read-only COM4 check returned 22 settings and 40 channels with zero read errors. Bluetooth now loads correctly, but Windows still reports its scanner unavailable/off. No hardware writes were performed; live Bluetooth connections and multi-radio writes still need bench validation.
+
+## Compare, naming and saved history
+
+Use **Preview** in Saved profiles to see included values and channel names. **Compare** checks the current radio against a profile; **Compare devices** in the batch editor compares the selected, already-read radios side by side. Differences and missing values are highlighted, with a differences-only filter. Channel keys are compared but never displayed in these views. Read again when you need fresh comparison data.
+
+Each saved profile can carry a simple naming prefix and starting number. For example, prefix `Truck` and start `10` proposes `Truck-10`, `Truck-11`, and so on when you use numbering in the individual-device wizard. You can still edit each name before review. Numbering starts from the saved value each time; it does not reserve fleet-wide numbers. JSON import/export preserves these optional naming defaults.
+
+A small local SQLite database at `data/history.sqlite3` remembers public device identities, last-seen connections, run targets and per-device results. Profiles remain portable JSON; the database needs no server or additional installation. A radio can be recognized after its COM port changes. History can export results to CSV. Progress is displayed per device; completed results remain available after reopening the app. An unfinished run is never automatically resumed or marked verified: reread before starting a new review.
+
+For a persistence check, restart the radio yourself, select its current connection, choose the saved run in **History**, then choose **Verify selected radio after restart**. Confirm that you restarted it. The app rereads without writing, matches the public identity, and checks the requested settings/channels against the saved expectations. It records matches, mismatches and your restart confirmation separately from immediate write verification; it cannot independently prove a restart occurred.
+
+The main editor asks before discarding pending changes when loading another profile, changing connections, rereading, opening batch work or closing. The batch window keeps its progress and stop controls visible at its minimum size.
+
+The local database can contain configuration values, including channel keys. Keep `data/` private along with profiles, reports and snapshots; all are excluded from Git.

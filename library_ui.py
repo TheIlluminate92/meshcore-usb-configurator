@@ -1,8 +1,9 @@
 """Named profile library and explicit field-selection dialog."""
 import tkinter as tk
+import json
 from tkinter import ttk, messagebox, filedialog, simpledialog
 from pathlib import Path
-from model import FIELDS, display, load_document, profile
+from model import FIELDS, display, load_document, profile, validate_naming
 from device import save_json
 from profile_library import ProfileLibrary, PERSONAL
 
@@ -18,10 +19,11 @@ class LibraryPage(ttk.Frame):
             self.list.heading(key,text=label);self.list.column(key,width=width)
         self.list.pack(fill='both',expand=True)
         self.list.bind('<<TreeviewSelect>>',lambda _:self.describe())
+        self.list.bind('<Double-1>',lambda _:self.guarded(self.preview))
         self.info=tk.StringVar()
         ttk.Label(self,textvariable=self.info,wraplength=1020,style='Muted.TLabel').pack(anchor='w',pady=8)
         row=ttk.Frame(self);row.pack(fill='x',pady=8)
-        for title,fn in [('Save editor…',self.save_editor),('Update…',self.update_editor),('Load into editor',self.load_editor),('Import…',self.import_file),('Export…',self.export),('Rename',self.rename),('Remove',self.remove)]:
+        for title,fn in [('Preview',self.preview),('Compare',self.compare),('Save editor…',self.save_editor),('Update…',self.update_editor),('Load into editor',self.load_editor),('Import…',self.import_file),('Export…',self.export),('Rename',self.rename),('Remove',self.remove)]:
             ttk.Button(row,text=title,command=lambda f=fn:self.guarded(f)).pack(side='left',padx=(0,6))
         ttk.Button(self,text='Apply profile to multiple devices…',style='Primary.TButton',command=lambda:self.guarded(self.batch)).pack(anchor='w',pady=(4,0))
         self.refresh()
@@ -50,7 +52,16 @@ class LibraryPage(ttk.Frame):
         e=self.selected()
         self.info.set('Includes: '+', '.join(FIELDS[k][0] for k in e['settings'])+f". Channel slots: {[c['index'] for c in e['channels']]}. Keys stay hidden.")
 
-    def choose_scope(self, settings, channels, suggested='', existing=None):
+    def preview(self):
+        from compare_ui import preview
+        preview(self.app.root,self.selected())
+
+    def compare(self):
+        if self.app.snapshot is None:raise ValueError('Read a radio before comparing it with a profile.')
+        from compare_ui import compare
+        compare(self.app.root,[self.app.snapshot],self.selected())
+
+    def choose_scope(self, settings, channels, suggested='', existing=None, naming=None):
         dialog=tk.Toplevel(self);dialog.title('Save reusable profile');dialog.transient(self.app.root);dialog.grab_set()
         frame=ttk.Frame(dialog,padding=16);frame.pack(fill='both',expand=True)
         name=tk.StringVar(value=suggested)
@@ -65,11 +76,18 @@ class LibraryPage(ttk.Frame):
         include=tk.BooleanVar(value=bool(existing['channels']) if existing else bool(channels))
         ttk.Checkbutton(frame,text=f"Include {len(channels)} channel slots (names and keys)",variable=include).grid(row=row,column=0,columnspan=3,sticky='w',pady=8)
         ttk.Label(frame,text='New profiles exclude names and coordinates by default. Saving the editor omits unchanged empty slots.',wraplength=760,style='Muted.TLabel').grid(row=row+1,column=0,columnspan=3,sticky='w')
+        template=validate_naming(existing.get('naming') if existing else naming)
+        prefix=tk.StringVar(value=template['prefix']);start=tk.StringVar(value=str(template['start']))
+        naming_row=ttk.Frame(frame);naming_row.grid(row=row+2,column=0,columnspan=3,sticky='w',pady=8)
+        ttk.Label(naming_row,text='Naming prefix:').pack(side='left')
+        ttk.Entry(naming_row,textvariable=prefix,width=20).pack(side='left',padx=8)
+        ttk.Label(naming_row,text='Start at:').pack(side='left')
+        ttk.Spinbox(naming_row,from_=1,to=999999,textvariable=start,width=7).pack(side='left',padx=8)
         def save():
-            try: ident=self.library.save(name.get(),{k:v for k,v in settings.items() if fields[k].get()},channels if include.get() else [],existing['id'] if existing else None)
+            try: ident=self.library.save(name.get(),{k:v for k,v in settings.items() if fields[k].get()},channels if include.get() else [],existing['id'] if existing else None,{'prefix':prefix.get(),'start':int(start.get())})
             except Exception as exc:messagebox.showerror('Could not save',str(exc),parent=dialog);return
             self.refresh(ident);dialog.destroy()
-        ttk.Button(frame,text='Save profile',command=save).grid(row=row+2,column=2,sticky='e',pady=(12,0))
+        ttk.Button(frame,text='Save profile',command=save).grid(row=row+3,column=2,sticky='e',pady=(12,0))
 
     def save_editor(self, existing=None):
         settings=self.app.desired()
@@ -93,12 +111,15 @@ class LibraryPage(ttk.Frame):
         if not path:return
         settings,channels,warnings=load_document(Path(path))
         if warnings:messagebox.showinfo('Import notes','\n'.join(warnings))
-        self.choose_scope(settings,channels,Path(path).stem[:80])
+        data=json.loads(Path(path).read_text(encoding='utf-8-sig'))
+        self.choose_scope(settings,channels,data.get('profile_name',Path(path).stem[:80]),naming=validate_naming(data.get('naming')))
 
     def load_editor(self):
         if self.app.snapshot is None:raise ValueError('Read a device before loading the editor.')
+        if not self.app.confirm_discard():return
         from batch import plan_device
         e=self.selected();plan_device(self.app.snapshot,e)
+        self.app.show(self.app.snapshot)
         for k,v in e['settings'].items():self.app.variables[k].set(display(k,v))
         for c in e['channels']:
             n,s=self.app.channel_vars[c['index']];n.set(c['name']);s.set(c['secret'])
@@ -107,7 +128,8 @@ class LibraryPage(ttk.Frame):
 
     def export(self):
         e=self.selected();path=filedialog.asksaveasfilename(defaultextension='.json',filetypes=[('JSON profiles','*.json')])
-        if path:save_json(path,profile(e['settings'],e['channels']))
+        if path:
+            data=profile(e['settings'],e['channels']);data.update(naming=e['naming'],profile_name=e['name']);save_json(path,data)
 
     def rename(self):
         e=self.selected();name=simpledialog.askstring('Rename profile','Profile name:',initialvalue=e['name'],parent=self)
@@ -119,5 +141,7 @@ class LibraryPage(ttk.Frame):
             self.library.archive(e['id']);self.refresh()
 
     def batch(self):
+        if not self.app.confirm_discard():return
+        if self.app.snapshot is not None:self.app.show(self.app.snapshot)
         from batch_ui import BatchWindow
         BatchWindow(self.app,self.selected())

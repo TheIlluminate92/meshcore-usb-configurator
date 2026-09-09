@@ -30,7 +30,7 @@ def plan_device(snapshot, document):
         if c!=known[c['index']]: channels.append(c)
     if not snapshot['self_info'].get('public_key'):
         raise ValueError('Device identity was not reported.')
-    return copy.deepcopy({'port':snapshot['port'],'baseline':snapshot,'settings':delta,'channels':channels,'channel_checks':channel_checks})
+    return copy.deepcopy({'port':snapshot['port'],'baseline':snapshot,'settings':delta,'channels':channels,'channel_checks':channel_checks,'expected':{'settings':settings,'channels':channel_checks}})
 
 def plan_many(snapshots, document, individual=None):
     plans=[]
@@ -57,9 +57,10 @@ def plan_many(snapshots, document, individual=None):
     if not plans: raise ValueError('Select and read at least one device.')
     return plans
 
-async def apply_many(plans, folder, cancelled=lambda:False, progress=lambda *args:None):
+async def apply_many(plans, folder, cancelled=lambda:False, progress=lambda *args:None, history=None, profile_name='Batch editor'):
     report={'started_at':datetime.now().isoformat(),'devices':[]}
     path=Path(folder)/('batch-'+datetime.now().strftime('%Y%m%d-%H%M%S-%f')+'.json')
+    if history:report['run_id']=history.start(plans,profile_name,path)
     stopped=False
     for plan in plans:
         item={'port':plan['port'],'name':plan['baseline']['settings'].get('name','?'),'status':'Not attempted'}
@@ -67,20 +68,25 @@ async def apply_many(plans, folder, cancelled=lambda:False, progress=lambda *arg
         save_json(path,report)
         if stopped or cancelled():
             stopped=True
+            if history:history.result(report['run_id'],plan,item['status'])
             progress(plan['port'],item['status'])
             continue
         if not plan['settings'] and not plan['channels']:
             item['status']='No changes at review'
         else:
+            if history:history.result(report['run_id'],plan,'Writing and verifying…')
             progress(plan['port'],'Writing and verifying…')
             try:
                 item['after']=await apply_device(plan['port'],plan['baseline'],plan['settings'],folder,plan.get('channel_checks',plan['channels']))
                 item['status']='Verified'
+                if history:history.remember(item['after'])
             except Exception as exc:
                 item['status']='Failed — reread required'
                 item['error']=str(exc)
                 stopped=True
+        if history:history.result(report['run_id'],plan,item['status'],item.get('error'))
         save_json(path,report)
         progress(plan['port'],item['status'])
     save_json(path,report)
+    if history:history.finish(report['run_id'],'Stopped' if stopped else 'Complete')
     return report,path

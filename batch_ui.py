@@ -24,6 +24,7 @@ class BatchWindow:
         self.targets={};self.snapshots={};self.plans=None;self.controls=[]
         self.window.protocol('WM_DELETE_WINDOW',self.close)
         f=ttk.Frame(self.window,padding=16);f.pack(fill='both',expand=True)
+        footer=ttk.Frame(f);footer.pack(side='bottom',fill='x')
         self.heading=tk.StringVar(value='Shared settings: '+self.document['name'])
         ttk.Label(f,textvariable=self.heading,font=('Segoe UI',16,'bold')).pack(anchor='w')
         ttk.Label(f,text='Select → Read → Edit shared settings → Individual names → Review → Apply').pack(anchor='w',pady=8)
@@ -32,7 +33,7 @@ class BatchWindow:
             b=ttk.Button(bar,text=title,command=lambda action=fn:self.guard(action));b.pack(side='left',padx=(0,5));self.controls.append(b)
             if title=='Apply reviewed':self.apply_button=b;b.configure(state='disabled')
         editbar=ttk.Frame(f);editbar.pack(fill='x',pady=(8,0))
-        for title,fn in [('Edit shared settings…',self.edit_shared),('Individual names & positions…',self.individual_step),('Save shared profile…',self.save_shared)]:
+        for title,fn in [('Edit shared settings…',self.edit_shared),('Individual names & positions…',self.individual_step),('Save shared profile…',self.save_shared),('Compare devices',self.compare)]:
             button=ttk.Button(editbar,text=title,command=lambda action=fn:self.guard(action));button.pack(side='left',padx=(0,8));self.controls.append(button)
         self.tree=ttk.Treeview(f,columns=('port','name','status'),show='headings',selectmode='extended',height=8)
         for key,label,width in [('port','Connection',200),('name','Device',220),('status','Status',480)]:
@@ -45,8 +46,13 @@ class BatchWindow:
         scroll=ttk.Scrollbar(details,command=self.details.yview);self.details.configure(yscrollcommand=scroll.set)
         scroll.pack(side='right',fill='y');self.details.pack(fill='both',expand=True)
         self.status=tk.StringVar(value='Find and select the devices you want to configure.')
-        ttk.Label(f,textvariable=self.status,wraplength=980).pack(anchor='w')
-        self.stop=ttk.Button(f,text='Stop after current device',command=self.cancel.set,state='disabled');self.stop.pack(anchor='e',pady=(8,0))
+        ttk.Label(footer,textvariable=self.status,wraplength=850).pack(anchor='w')
+        self.progress_value=tk.DoubleVar(value=0)
+        self.progress_label=tk.StringVar(value='')
+        ttk.Label(footer,textvariable=self.progress_label).pack(anchor='w',pady=(6,2))
+        self.progress_bar=ttk.Progressbar(footer,variable=self.progress_value,maximum=1);self.progress_bar.pack(fill='x')
+        self.progress_statuses={};self.progress_ports=[]
+        self.stop=ttk.Button(footer,text='Stop after current device',command=self.cancel.set,state='disabled');self.stop.pack(anchor='e',pady=(8,0))
         self.poll_id=self.window.after(100,self.poll)
         self.find_usb()
 
@@ -78,6 +84,14 @@ class BatchWindow:
         i=self.targets[port];values=list(self.tree.item(i,'values'));values[2]=status
         if name is not None:values[1]=name
         self.tree.item(i,values=values)
+        if port in self.progress_ports:
+            self.progress_statuses[port]=status
+            terminal={'Verified','No changes at review','Failed — reread required','Not attempted','Read complete','Not read — stopped'}
+            finished=sum(s in terminal or s.startswith(('Read failed:','Read complete')) for s in self.progress_statuses.values())
+            verified=sum(s=='Verified' for s in self.progress_statuses.values())
+            failed=sum(s.startswith('Failed') or s.startswith('Read failed:') for s in self.progress_statuses.values())
+            self.progress_value.set(finished)
+            self.progress_label.set(f'{finished} / {len(self.progress_ports)} finished · {verified} verified · {failed} failed')
 
     def run(self,operation,callback,status):
         self.busy=True;self.cancel.clear();self.status.set(status)
@@ -91,6 +105,7 @@ class BatchWindow:
     def read_selected(self):
         ports=self.selected();self.invalidate_review()
         self.individual={}
+        self.start_progress(ports)
         for p in ports:self.snapshots.pop(p,None)
         async def read():
             results={}
@@ -100,15 +115,26 @@ class BatchWindow:
                 try:
                     snapshot=await read_device(port)
                     save_json(self.app.profile_page.library.folder.parent/'snapshots'/('fleet-'+datetime.now().strftime('%Y%m%d-%H%M%S-%f')+'.json'),snapshot)
+                    previous=self.app.history.remember(snapshot)
+                    snapshot['recognized_from']=previous['last_port'] if previous else None
                     results[port]=snapshot
                     self.queue.put(('progress',port,'Read complete'))
                 except Exception as exc:self.queue.put(('progress',port,'Read failed: '+str(exc)))
             return results
         def done(results):
             self.snapshots.update(results)
-            for p,s in results.items():self.update(p,'Read complete',s['settings'].get('name','?'))
+            for p,s in results.items():self.update(p,'Read complete'+(' · recognized from '+s['recognized_from'] if s.get('recognized_from') else ''),s['settings'].get('name','?'))
             self.status.set(f'{len(results)} of {len(ports)} devices read. Review the selected devices next.')
         self.run(read(),done,'Reading selected devices…')
+
+    def start_progress(self,ports):
+        self.progress_ports=list(ports);self.progress_statuses={}
+        self.progress_bar.configure(maximum=max(1,len(ports)));self.progress_value.set(0)
+        self.progress_label.set(f'0 / {len(ports)} finished')
+
+    def compare(self):
+        from compare_ui import compare
+        compare(self.window,self.selected_snapshots(),self.document)
 
     def selected_snapshots(self):
         ports=self.selected()
@@ -132,7 +158,7 @@ class BatchWindow:
         name=simpledialog.askstring('Save shared profile','Name for these shared settings:',parent=self.window)
         if name is None:return
         library=self.app.profile_page.library
-        ident=library.save(name,self.document['settings'],self.document.get('channels',[]))
+        ident=library.save(name,self.document['settings'],self.document.get('channels',[]),naming=self.document.get('naming'))
         self.app.profile_page.refresh(ident)
         self.status.set('Shared profile saved. Individual names and positions are kept out of it.')
 
@@ -172,14 +198,16 @@ class BatchWindow:
         plans=copy.deepcopy(self.plans)
         if not messagebox.askokcancel('Apply reviewed batch?',f"Apply {self.document['name']} to {len(plans)} reviewed devices?\nEach changed device will be reread and verified. A failure stops the batch; completed devices are not rolled back.",parent=self.window):return
         self.invalidate_review()
+        self.start_progress([p['port'] for p in plans])
         async def work():
-            return await apply_many(plans,self.app.profile_page.library.folder.parent/'reports',self.cancel.is_set,lambda p,s:self.queue.put(('progress',p,s)))
+            return await apply_many(plans,self.app.profile_page.library.folder.parent/'reports',self.cancel.is_set,lambda p,s:self.queue.put(('progress',p,s)),history=self.app.history,profile_name=self.document['name'])
         def done(result):
             report,path=result
             for p in plans:self.snapshots.pop(p['port'],None)
             self.set_details('\n'.join(f"{d['name']} — {d['port']}: {d['status']}"+ ('\n'+d['error'] if 'error' in d else '') for d in report['devices']))
             self.status.set(f'Batch finished. Report: {path}. Read again before another batch.')
             self.app.invalidate()
+            self.app.history_page.refresh()
         self.run(work(),done,'Applying reviewed changes…')
 
     def poll(self):

@@ -53,6 +53,18 @@ for key in ('spreading_factor', 'coding_rate', 'multi_acks'):
 def display(key, value):
     return CHOICES.get(key, {}).get(value, str(value))
 
+def validate_naming(value=None):
+    if value is None:return {'prefix':'Tracker','start':1}
+    if not isinstance(value,dict) or set(value)!={'prefix','start'}:
+        raise ValueError('Naming requires a prefix and starting number.')
+    prefix=value['prefix']
+    start=value['start']
+    if not isinstance(prefix,str) or not prefix.strip() or '\x00' in prefix or len(prefix.strip().encode('utf-8'))>24:
+        raise ValueError('Naming prefix must contain 1–24 UTF-8 bytes, without null characters.')
+    if type(start) is not int or not 1<=start<=999999:
+        raise ValueError('Starting number must be a whole number from 1 to 999999.')
+    return {'prefix':prefix.strip(),'start':start}
+
 def parse_input(key, text):
     if not isinstance(text, str) or key not in CHOICES:
         return text

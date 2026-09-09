@@ -49,6 +49,7 @@ class ChannelsUI(unittest.TestCase):
         except tk.TclError as exc: self.skipTest(str(exc))
         with patch('app.serial_ports',return_value=[]): self.app=App(self.root)
         self.addCleanup(self.app.close)
+        self.addCleanup(setattr,self.app,'pending_count',0)
         s=copy.deepcopy(BASE)
         s['device']['max_channels']=40
         s['channels']=[{'index':i,'name':'Team' if i==0 else '', 'secret':'00'*16} for i in range(40)]

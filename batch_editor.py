@@ -3,7 +3,7 @@ import copy
 import tkinter as tk
 from tkinter import ttk, messagebox
 from setting_box import SettingBox
-from model import FIELDS, CHOICES, validate, display, parse_input
+from model import FIELDS, CHOICES, validate, display, parse_input, validate_naming
 from batch import plan_device, plan_many
 
 class SharedEditor:
@@ -50,7 +50,7 @@ class SharedEditor:
             values=validate({k:parse_input(k,self.values[k].get()) for k,check in self.include.items() if check.get()})
             mode=self.channel_mode.get()
             channels=self.channels if mode=='Profile channels' else copy.deepcopy(self.snapshots[0].get('channels',[])) if mode=='Copy all slots from first device' else []
-            document={'name':'Batch editor','settings':values,'channels':channels}
+            document={'name':self.owner.document.get('name','Batch editor'),'settings':values,'channels':channels,'naming':validate_naming(self.owner.document.get('naming'))}
             for s in self.snapshots:plan_device(s,document)
         except Exception as exc:messagebox.showerror('Shared settings',str(exc),parent=self.window);return
         self.owner.document=document;self.owner.individual={};self.owner.invalidate_review()
@@ -73,8 +73,12 @@ class IndividualWizard:
         self.entry=ttk.Entry(f,textvariable=self.name,width=38);self.entry.grid(row=2,column=1,padx=(16,0),pady=8)
         prefix=ttk.Frame(f);prefix.grid(row=3,column=0,columnspan=2,sticky='w',pady=8)
         ttk.Label(prefix,text='Or number the whole batch:').pack(side='left')
-        self.prefix=tk.StringVar(value='Tracker')
+        template=validate_naming(owner.document.get('naming'))
+        self.used_naming=copy.deepcopy(template)
+        self.prefix=tk.StringVar(value=template['prefix']);self.start=tk.StringVar(value=str(template['start']))
         ttk.Entry(prefix,textvariable=self.prefix,width=16).pack(side='left',padx=8)
+        ttk.Label(prefix,text='Start:').pack(side='left')
+        ttk.Spinbox(prefix,from_=1,to=999999,textvariable=self.start,width=6).pack(side='left',padx=6)
         ttk.Button(prefix,text='Number all: -01, -02…',command=self.number).pack(side='left')
         self.fixed_button=ttk.Checkbutton(f,text='Set a fixed position for this device (GPS must be off)',variable=self.fixed,command=self.position_state)
         self.fixed_button.grid(row=4,column=0,columnspan=2,sticky='w',pady=8)
@@ -120,8 +124,10 @@ class IndividualWizard:
 
     def number(self):
         try:
-            names=[validate({'name':f'{self.prefix.get().strip()}-{i+1:02d}'})['name'] for i in range(len(self.snapshots))]
+            template=validate_naming({'prefix':self.prefix.get(),'start':int(self.start.get())})
+            names=[validate({'name':f"{template['prefix']}-{i+template['start']:02d}"})['name'] for i in range(len(self.snapshots))]
             self.name.set(names[self.index]);self.capture()
+            self.used_naming=template
             for s,name in zip(self.snapshots,names):self.draft.setdefault(s['self_info']['public_key'],{})['name']=name
             self.show()
         except Exception as exc:messagebox.showerror('Names',str(exc),parent=self.window)
@@ -131,6 +137,7 @@ class IndividualWizard:
             self.capture()
             if direction==1 and self.index==len(self.snapshots)-1:
                 plan_many(self.snapshots,self.owner.document,self.draft)
+                self.owner.document['naming']=copy.deepcopy(self.used_naming)
                 self.owner.individual=copy.deepcopy(self.draft);self.close();self.owner.review();return
             self.index+=direction;self.show()
         except Exception as exc:messagebox.showerror('Individual values',str(exc),parent=self.window)

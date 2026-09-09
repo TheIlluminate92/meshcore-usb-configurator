@@ -2,6 +2,9 @@
 *.json
 *.log
 profiles/
+data/
+*.sqlite3
+*.sqlite3-*
 snapshots/
 reports/
 baselines/

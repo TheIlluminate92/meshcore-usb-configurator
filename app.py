@@ -21,7 +21,12 @@ class App:
     def __init__(self, root):
         self.root, self.snapshot, self.busy = root, None, False
         self.loading = False
+        self.pending_count = 0
+        self.editor_port_choice = ''
+        self.editor_transport = 'USB'
         self.batch_window = None
+        from history_store import HistoryStore
+        self.history = HistoryStore(ROOT / 'data' / 'history.sqlite3')
         self.pending = tk.StringVar(value='Read a radio to begin')
         self.support_summary = tk.StringVar(value='USB COMPANION  /  LOCAL CONFIGURATION')
         self.results = queue.Queue()
@@ -48,7 +53,7 @@ class App:
         self.port_box.pack(side='left')
         Tooltip(self.port_box, 'USB serial port', HELP['port'])
         help_label(row, '?', 'Bluetooth needs BLE-enabled Companion firmware. Windows handles pairing. Close phone/browser connections before reading.').pack(side='left')
-        self.port_box.bind('<<ComboboxSelected>>', lambda _: self.invalidate())
+        self.port_box.bind('<<ComboboxSelected>>', lambda _: self.choose_port())
         self.buttons = []
         self.action_buttons = {}
         self.button(row, 'Find devices', self.scan)
@@ -129,6 +134,9 @@ class App:
         from library_ui import LibraryPage
         self.profile_page = LibraryPage(notebook, self, ROOT / 'profiles')
         notebook.add(self.profile_page, text='Saved profiles')
+        from history_ui import HistoryPage
+        self.history_page = HistoryPage(notebook,self)
+        notebook.add(self.history_page,text='History')
         ttk.Label(footer, text='Battery icons appear where useful: more filled = higher drain. Rough guidance, not runtime. Radio costs apply during transmission.', style='Status.TLabel', wraplength=1040).pack(anchor='w', pady=(5, 0))
         ttk.Label(footer, textvariable=self.pending, style='Pending.TLabel').pack(anchor='w', pady=(13, 0))
         actions = ttk.Frame(footer, style='Root.TFrame')
@@ -158,10 +166,22 @@ class App:
             Tooltip(b, text, HELP[text])
 
     def open_batch(self):
+        if not self.confirm_discard():return
+        if self.snapshot is not None:self.show(self.snapshot)
         from batch_ui import BatchWindow
         BatchWindow(self)
 
+    def confirm_discard(self):
+        return not self.pending_count or messagebox.askyesno('Unsaved edits','The editor has pending changes. Continue without saving those edits?')
+
+    def choose_port(self):
+        if not self.confirm_discard():
+            self.port.set(self.editor_port_choice);return
+        self.invalidate()
+
     def change_transport(self):
+        if not self.confirm_discard():
+            self.transport.set(self.editor_transport);return
         self.port.set('')
         self.invalidate()
         self.scan()
@@ -175,6 +195,7 @@ class App:
         ports = [f'{p} | {desc}' for p, desc in serial_ports()]
         self.port_box['values'] = ports
         if old not in ports:
+            if not self.confirm_discard():return
             self.port.set(next((p for p in ports if 'USB' in p.upper()), ports[0] if ports else ''))
             self.invalidate()
         self.status.set(f'{len(ports)} serial port(s) found. Select the USB device and read it.')
@@ -220,6 +241,7 @@ class App:
             if index in before and (name.get() != before[index]['name'] or secret.get().lower() != before[index]['secret']):
                 channel_count += 1
         self.pending.set(f'{count} setting changes  ·  {channel_count} channel slots pending' if count or channel_count else ('Up to date  ·  No pending edits' if self.snapshot else 'Read a radio to begin'))
+        self.pending_count=count+channel_count
         for name, button in self.action_buttons.items():
             enabled = not self.busy and (name in ('Read device', 'Find devices', 'Batch editor') or self.snapshot is not None)
             if name == 'Review & apply':
@@ -340,11 +362,14 @@ class App:
         self.poll_id = self.root.after(100, self.poll)
 
     def read(self):
+        if not self.confirm_discard():return
         self.run(read_device(self.selected_port()), self.read_done, 'Reading settings, channels and contacts…')
 
     def show(self, snapshot):
         self.loading = True
         self.snapshot = snapshot
+        self.editor_port_choice=self.port.get()
+        self.editor_transport=self.transport.get()
         info = snapshot['device']
         self.identity.set(f"{snapshot['settings'].get('name', '?')} | {info.get('model', 'Unknown model')} | Firmware {info.get('ver', '?')} | {snapshot['port']}")
         for key, entry in self.entries.items():
@@ -364,11 +389,14 @@ class App:
         self.edited()
 
     def read_done(self, snapshot):
+        previous=self.history.remember(snapshot)
         self.show(snapshot)
         path = ROOT / 'snapshots' / (datetime.now().strftime('%Y%m%d-%H%M%S-%f') + '.json')
         save_json(path, snapshot)
         errors = snapshot.get('read_errors', {})
         self.status.set(f"Read complete; snapshot saved. {'Some optional reads failed; see reported data.' if errors else 'Ready to edit.'}")
+        if previous:
+            self.status.set(self.status.get() + (' Recognized radio; previous connection: '+previous['last_port']+'.'))
 
     def desired(self):
         if self.snapshot is None:
@@ -381,6 +409,7 @@ class App:
             raise ValueError('Read the device first so supported options can be checked.')
         path = filedialog.askopenfilename(filetypes=[('JSON profiles', '*.json')])
         if path:
+            if not self.confirm_discard():return
             settings, channels, warnings = load_document(Path(path))
             unsupported = set(settings) - self.snapshot['settings'].keys()
             if unsupported:
@@ -390,6 +419,7 @@ class App:
             if unavailable_slots:
                 raise ValueError(f'Channel slots not reported by this device: {unavailable_slots}')
             validate(settings, self.snapshot['self_info'].get('max_tx_power', 0))
+            self.show(self.snapshot)
             for key, value in settings.items():
                 self.variables[key].set(display(key, value))
             for c in channels:
@@ -429,8 +459,16 @@ class App:
         if messagebox.askokcancel('Apply these changes?', f'{self.identity.get()}\n\n{review}\n\nWrite these settings and verify by rereading?'):
             def done(result):
                 self.show(result)
+                self.history_page.refresh()
                 self.status.set('Verified: requested values match. Apply report saved. Use Read device to refresh all channels and contacts.')
-            self.run(apply_device(self.selected_port(), self.snapshot, delta, ROOT / 'reports', channel_delta), done, 'Writing settings and verifying…')
+            async def recorded_apply():
+                from batch import plan_device, apply_many
+                plan=plan_device(self.snapshot,{'settings':delta,'channels':channel_delta})
+                report,_=await apply_many([plan],ROOT/'reports',history=self.history,profile_name='Single device edit')
+                item=report['devices'][0]
+                if item['status']!='Verified':raise RuntimeError(item.get('error',item['status']))
+                return item['after']
+            self.run(recorded_apply(), done, 'Writing settings and verifying…')
 
     def close(self):
         if self.batch_window is not None:
@@ -441,6 +479,7 @@ class App:
         if self.busy:
             messagebox.showinfo('Operation in progress', 'Wait for the device operation to finish before closing.')
         else:
+            if not self.confirm_discard():return
             self.root.after_cancel(self.poll_id)
             self.root.destroy()
 

@@ -1,5 +1,14 @@
 # Changelog
 
+## Fleet workflow � 2026-09-09
+
+- Added profile previews and side-by-side comparisons with missing-value and differences-only views; channel keys remain hidden.
+- Added per-profile naming prefixes and starting numbers, preserved through JSON import/export.
+- Added local SQLite history, recognition by public identity across connection changes, per-device progress and CSV result exports. Profiles remain JSON.
+- Added read-only verification against saved expectations after a user-confirmed radio restart. Restart confirmation and reread results are recorded separately.
+- Added pending-edit discard prompts and reserved space for batch progress/stop controls at the minimum window size.
+- Validation: automated persistence, comparison, naming, failure, identity and restart-check tests; live hardware writes, restart persistence and Bluetooth remain pending bench validation.
+
 ## Bug hunt — 2026-09-09
 
 Fixes shipped in commit [af76e77](https://github.com/TheIlluminate92/meshcore-usb-configurator/commit/af76e77c4efd105498f83d479bc29c6c26e5f234).
