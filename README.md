@@ -81,3 +81,14 @@ In History, choose **Restore previous settings**, select the operation to undo, 
 Saved profiles includes **Companion**, **Repeater** and **Room Server** built-ins. Companion is a writable conservative starting point; server presets are clearly labeled setup references for the separate server CLI, with suggested settings and effects. They do not change firmware roles. Recommendations are project starting points, not official MeshCore defaults. Radio parameters and power stay unchanged so local network settings are preserved. Server command semantics: https://docs.meshcore.io/cli_commands/ . Direct server configuration is not implemented yet.
 
 Use **Compatibility** in Saved profiles or **More → Compatibility review** in Batch editor for per-radio availability and changes. Unsupported or invalid profile items block the batch; edit the profile or uncheck incompatible radios. Nothing is silently skipped.
+
+## Planning tools (0.7.0)
+
+- **Help → Detect firmware role**: select a connection first. USB server probing sends only `get role` at 115200 baud; Companion identification uses its supported handshake. Older/custom firmware without a recognized reply stays Unknown. Role detection does not enable server writes or change firmware. Successful normal Companion reads also label the role.
+- **Saved profiles → Notes**: write your own multi-line notes (up to 4000 characters). Notes survive library updates, renames and profile import/export. The scope/save dialog includes notes too. Built-ins remain immutable.
+- **Help → Export dry run**, or **Batch editor → More → Export dry run**: saves a JSON preview of current editor/shared settings and reviewed individual overrides, including unread/incompatible radios. It uses the last reads, performs no writes, and is not a verification. Channel keys are omitted; names and positions may be included.
+- **Help → Back up portable app**: save the ZIP outside User Data. It contains saved application data plus the current EXE in a packaged build. SQLite history is copied through its backup API so committed WAL data is included. Temporary update installers are excluded. Unsaved editor changes are not included. Keep this backup private.
+- Restore a portable backup by closing the app and extracting into a separate folder. If created from source without an EXE, put a compatible portable EXE next to User Data. Open the extracted app after checking the folder. The ZIP includes these instructions; no automatic overwrite/merge is performed.
+- **App updates** displays plain-text release notes for an available update. Updating an older version to 0.7.0 still uses that older update dialog; the notes view appears once 0.7.0 is running.
+
+See [Community requests](COMMUNITY_REQUESTS.md) for sourced ideas reviewed on September 9, 2026.

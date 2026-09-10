@@ -71,7 +71,7 @@ async def basic(mc, port):
     # The library exposes the signed firmware byte as unsigned.
     if 128 <= own.get('tx_power', 0) <= 255:
         own['tx_power'] -= 256
-    snapshot = {'captured_at': datetime.now(timezone.utc).isoformat(), 'port': port,
+    snapshot = {'firmware_role':'companion', 'captured_at': datetime.now(timezone.utc).isoformat(), 'port': port,
             'device': info, 'self_info': own,
             'settings': {k: own[v] for k, v in MAP.items() if v in own}}
     # Normalize booleans and keep out-of-range/new enum values read-only.

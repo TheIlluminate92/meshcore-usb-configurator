@@ -1,5 +1,14 @@
 # Changelog
 
+## Planning and portability — 0.7.0
+
+- Help → Detect firmware role queries USB server firmware using read-only `get role` and identifies Companion via its protocol handshake. Unknown replies remain unknown. Server settings are still read-only references pending a full CLI adapter and hardware validation.
+- Saved profiles now have editable user notes, preserved across updates/renames and JSON library import/export. Built-in presets remain read-only; make your own Companion profile to add notes.
+- Export dry runs from Help (single device) or Batch editor → More. Reports show proposed settings, individual overrides and compatibility blocks using the last device reads. No writes or channel keys are included; names and locations can be present.
+- Help → Back up portable app creates a verified ZIP containing saved profiles, preferences, snapshots, recovery reports, logs and a consistent SQLite history copy. Packaged builds also include the EXE. Download caches/old installers are excluded. Backups contain private data and belong outside support issues.
+- App updates shows release notes before installing. Future release notes use this changelog rather than only generated commit summaries.
+- Added COMMUNITY_REQUESTS.md with cited Reddit/forum findings and an unapproved suggested backlog. Community suggestions were not automatically implemented.
+
 ## Recovery, support and profiles — 0.6.0
 
 - History can restore the fields/channels changed by a previous operation, including an incomplete write. It rereads the same radio by public identity, loads original values into the editor, and requires normal review, write and verification. Missing backups or incompatible current capabilities block restoration.

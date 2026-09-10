@@ -54,6 +54,10 @@ class App:
         tools_menu=tk.Menu(tools_button,tearoff=False);tools_button.configure(menu=tools_menu)
         tools_menu.add_command(label='Save support report…',command=self.save_support)
         tools_menu.add_command(label='Report a bug on GitHub…',command=lambda:self.save_support(open_github=True))
+        tools_menu.add_separator()
+        tools_menu.add_command(label='Detect firmware role…',command=self.detect_firmware)
+        tools_menu.add_command(label='Export dry run…',command=self.export_dry_run)
+        tools_menu.add_command(label='Back up portable app…',command=self.backup_portable)
         ttk.Button(header,text='App updates',command=self.open_updates).pack(side='right',padx=(8,0))
         self.theme_choice=tk.StringVar(value=self.preferences.get('theme','System'))
         theme_box=ttk.Combobox(header,textvariable=self.theme_choice,values=['Light','Dark','System'],state='readonly',width=8)
@@ -184,6 +188,52 @@ class App:
         self.poll_id = root.after(100, self.poll)
         self.scan()
         self.edited()
+
+    def detect_firmware(self):
+        if self.busy or self.batch_window is not None or self.update_window is not None:return
+        if not self.confirm_discard():return
+        try:port=self.selected_port()
+        except ValueError as exc:messagebox.showerror('Firmware detection',str(exc));return
+        self.invalidate()
+        from firmware_role import detect,LABELS
+        def done(role):
+            self.identity.set(f'{LABELS[role]} | {port}')
+            self.support_summary.set('ROLE DETECTION ONLY — READ DEVICE TO CONFIGURE' if role=='companion' else 'SERVER CONFIGURATION NOT YET SUPPORTED' if role in ('repeater','room') else 'NO RECOGNIZED FIRMWARE REPLY')
+            self.status.set('Detected '+LABELS[role]+'. No settings changed.')
+        self.run(detect(port),done,'Detecting firmware role from read-only protocol replies…')
+
+    def export_dry_run(self):
+        if self.busy or self.batch_window is not None:return
+        try:
+            data=profile(self.desired(),self.desired_channels())
+            path=filedialog.asksaveasfilename(title='Save dry run (may contain names and locations)',defaultextension='.json',initialfile='MeshCore-dry-run.json',filetypes=[('Dry run JSON','*.json')])
+            if path:
+                from dry_run import export
+                export(path,[self.snapshot],data)
+                self.status.set('Dry run saved. No settings written; channel keys excluded.')
+        except Exception as exc:messagebox.showerror('Dry run',str(exc),parent=self.root)
+
+    def backup_portable(self):
+        if self.busy or self.batch_window is not None or self.update_window is not None:
+            messagebox.showinfo('Operation in progress','Close other app dialogs and wait for device operations to finish.');return
+        path=filedialog.asksaveasfilename(title='Save private portable backup — keep this ZIP private',defaultextension='.zip',initialfile='MeshCore-backup-'+datetime.now().strftime('%Y%m%d-%H%M%S')+'.zip',filetypes=[('Portable backup','*.zip')])
+        if not path:return
+        from portable_backup import create_backup
+        import sys
+        states=[(w,w.cget('state')) for w in list(self.entries.values())+self.channel_entries]
+        async def work():
+            try:return await asyncio.to_thread(create_backup,path,ROOT,sys.executable if getattr(sys,'frozen',False) else None),None
+            except Exception as exc:
+                record_error('interface',exc);return None,str(exc)
+        def done(result):
+            for w,state in states:w.configure(state=state)
+            self.edited()
+            count,error=result
+            if error:
+                self.status.set('Backup failed. Your editor and saved data are unchanged.')
+                messagebox.showerror('Portable backup',error,parent=self.root)
+            else:self.status.set(f'Backup verified and saved ({count} files). Contains private data; do not upload it as a support report.')
+        self.run(work(),done,'Backing up portable data and history…')
 
     def callback_error(self, kind, value, trace):
         record_error('interface', value.with_traceback(trace))
@@ -463,7 +513,7 @@ class App:
         self.editor_port_choice=self.port.get()
         self.editor_transport=self.transport.get()
         info = snapshot['device']
-        self.identity.set(f"{snapshot['settings'].get('name', '?')} | {info.get('model', 'Unknown model')} | Firmware {info.get('ver', '?')} | {snapshot['port']}")
+        self.identity.set(f"{snapshot['settings'].get('name', '?')} | {info.get('model', 'Unknown model')} | Companion | Firmware {info.get('ver', '?')} | {snapshot['port']}")
         for key, entry in self.entries.items():
             supported = key in snapshot['settings']
             value = display(key, snapshot['settings'][key]) if supported else ''

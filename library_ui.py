@@ -24,8 +24,8 @@ class LibraryPage(ttk.Frame):
         self.info=tk.StringVar()
         ttk.Label(self,textvariable=self.info,wraplength=1020,style='Muted.TLabel').pack(anchor='w',pady=8)
         row=ttk.Frame(self);row.pack(fill='x',pady=8)
-        for title,fn in [('Preview',self.preview),('Compatibility',self.compatibility),('Save editor…',self.save_editor),('Update…',self.update_editor),('Load into editor',self.load_editor),('Import…',self.import_file),('Export…',self.export),('Rename',self.rename),('Remove',self.remove)]:
-            ttk.Button(row,text=title,command=lambda f=fn:self.guarded(f)).pack(side='left',padx=(0,6))
+        for index,(title,fn) in enumerate([('Preview',self.preview),('Notes…',self.edit_notes),('Compatibility',self.compatibility),('Save editor…',self.save_editor),('Update…',self.update_editor),('Load into editor',self.load_editor),('Import…',self.import_file),('Export…',self.export),('Rename',self.rename),('Remove',self.remove)]):
+            ttk.Button(row,text=title,command=lambda f=fn:self.guarded(f)).grid(row=index//5,column=index%5,sticky='w',padx=(0,6),pady=3)
         ttk.Button(self,text='Apply profile to multiple devices…',style='Primary.TButton',command=lambda:self.guarded(self.batch)).pack(anchor='w',pady=(4,0))
         self.refresh()
 
@@ -51,7 +51,19 @@ class LibraryPage(ttk.Frame):
     def describe(self):
         if not self.list.selection():return
         e=self.selected()
-        self.info.set(e.get('description','')+' Includes: '+', '.join(FIELDS[k][0] for k in e['settings'])+f". Channel slots: {[c['index'] for c in e['channels']]}. Keys stay hidden.")
+        self.info.set(e.get('description','')+(' Notes: '+e['notes'][:200] if e.get('notes') else '')+' Includes: '+', '.join(FIELDS[k][0] for k in e['settings'])+f". Channel slots: {[c['index'] for c in e['channels']]}. Keys stay hidden.")
+
+    def edit_notes(self):
+        e=self.selected();self.editable(e)
+        window=tk.Toplevel(self);window.title('Profile notes');window.transient(self.app.root);window.grab_set()
+        frame=ttk.Frame(window,padding=16);frame.pack(fill='both',expand=True)
+        ttk.Label(frame,text='Your notes: network, intended use, hardware, or anything useful. Up to 4000 characters.').pack(anchor='w')
+        box=tk.Text(frame,width=75,height=9,wrap='word');box.pack(fill='both',expand=True,pady=8);box.insert('1.0',e.get('notes',''))
+        def save():
+            try:ident=self.library.save(e['name'],e['settings'],e['channels'],e['id'],notes=box.get('1.0','end-1c'))
+            except Exception as exc:messagebox.showerror('Profile notes',str(exc),parent=window);return
+            self.refresh(ident);window.destroy()
+        ttk.Button(frame,text='Save notes',command=save).pack(anchor='e')
 
     def preview(self):
         from compare_ui import preview
@@ -70,7 +82,7 @@ class LibraryPage(ttk.Frame):
     def editable(self, entry):
         if entry.get('builtin'):raise ValueError('Built-in profiles are read-only. Load the Companion preset and use Save editor to make your own copy; server presets are setup references.')
 
-    def choose_scope(self, settings, channels, suggested='', existing=None, naming=None):
+    def choose_scope(self, settings, channels, suggested='', existing=None, naming=None, notes=None):
         dialog=tk.Toplevel(self);dialog.title('Save reusable profile');dialog.transient(self.app.root);dialog.grab_set()
         frame=ttk.Frame(dialog,padding=16);frame.pack(fill='both',expand=True)
         name=tk.StringVar(value=suggested)
@@ -92,11 +104,14 @@ class LibraryPage(ttk.Frame):
         ttk.Entry(naming_row,textvariable=prefix,width=20).pack(side='left',padx=8)
         ttk.Label(naming_row,text='Start at:').pack(side='left')
         ttk.Spinbox(naming_row,from_=1,to=999999,textvariable=start,width=7).pack(side='left',padx=8)
+        ttk.Label(frame,text='Your notes (network, purpose, hardware; 4000 characters)').grid(row=row+3,column=0,columnspan=3,sticky='w')
+        notes_box=tk.Text(frame,height=3,width=70,wrap='word');notes_box.grid(row=row+4,column=0,columnspan=3,sticky='ew')
+        notes_box.insert('1.0',existing.get('notes','') if existing else notes or '')
         def save():
-            try: ident=self.library.save(name.get(),{k:v for k,v in settings.items() if fields[k].get()},channels if include.get() else [],existing['id'] if existing else None,{'prefix':prefix.get(),'start':int(start.get())})
+            try: ident=self.library.save(name.get(),{k:v for k,v in settings.items() if fields[k].get()},channels if include.get() else [],existing['id'] if existing else None,{'prefix':prefix.get(),'start':int(start.get())},notes=notes_box.get('1.0','end-1c'))
             except Exception as exc:record_error('profiles',exc);messagebox.showerror('Could not save',str(exc),parent=dialog);return
             self.refresh(ident);dialog.destroy()
-        ttk.Button(frame,text='Save profile',command=save).grid(row=row+3,column=2,sticky='e',pady=(12,0))
+        ttk.Button(frame,text='Save profile',command=save).grid(row=row+5,column=2,sticky='e',pady=(12,0))
 
     def save_editor(self, existing=None):
         settings=self.app.desired()
@@ -121,7 +136,7 @@ class LibraryPage(ttk.Frame):
         settings,channels,warnings=load_document(Path(path))
         if warnings:messagebox.showinfo('Import notes','\n'.join(warnings))
         data=json.loads(Path(path).read_text(encoding='utf-8-sig'))
-        self.choose_scope(settings,channels,data.get('profile_name',Path(path).stem[:80]),naming=validate_naming(data.get('naming')))
+        self.choose_scope(settings,channels,data.get('profile_name',Path(path).stem[:80]),naming=validate_naming(data.get('naming')),notes=data.get('notes',''))
 
     def load_editor(self):
         if self.app.snapshot is None:raise ValueError('Read a device before loading the editor.')
@@ -139,7 +154,7 @@ class LibraryPage(ttk.Frame):
         e=self.selected();path=filedialog.asksaveasfilename(defaultextension='.json',filetypes=[('JSON profiles','*.json')])
         if path:
             data=profile(e['settings'],e['channels']);data.update(naming=e['naming'],profile_name=e['name'],target_role=e.get('target_role','companion'))
-            for key in ('description','cli_settings','advice','source'):
+            for key in ('description','cli_settings','advice','source','notes'):
                 if key in e:data[key]=e[key]
             save_json(path,data)
 

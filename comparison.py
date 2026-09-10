@@ -45,6 +45,7 @@ def profile_text(document):
         lines.extend(['SETUP REFERENCE ONLY — not writable with the Companion interface.',document.get('source',''),''])
         lines.extend(f'{k}: {v}' for k,v in document['cli_settings'].items())
         lines.extend(document.get('advice',[]))
+    if document.get('notes'):lines.extend(['Your notes:',document['notes'],''])
     naming=document.get('naming',{})
     lines.append(f"Naming: {naming.get('prefix','Tracker')}-{naming.get('start',1):02d}, … (suggestion only)")
     lines.extend(f'{FIELDS[k][0]}: {display(k,v)}' for k,v in document['settings'].items())

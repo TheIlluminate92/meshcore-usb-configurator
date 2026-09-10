@@ -41,7 +41,7 @@ def check():
     asset=next((a for a in release.get('assets',[]) if a['name']==ASSET),None)
     if not asset or not re.fullmatch(r'sha256:[a-f0-9]{64}',asset.get('digest') or ''):raise ValueError('Release has no verified Windows executable yet.')
     if type(asset.get('id')) is not int or asset['id']<=0 or type(asset.get('size')) is not int or not 0<asset['size']<=150*1024*1024:raise ValueError('Invalid update asset.')
-    return {'version':release['tag_name'],'asset':asset}
+    return {'version':release['tag_name'],'asset':asset,'notes':(release.get('body') or 'No release notes provided.')[:30000] if isinstance(release.get('body'),str) else 'No release notes provided.'}
 
 def download(release,folder):
     asset=release['asset'];folder=Path(folder);folder.mkdir(parents=True,exist_ok=True)

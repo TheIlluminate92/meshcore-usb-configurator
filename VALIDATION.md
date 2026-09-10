@@ -32,3 +32,7 @@ All 94 unit tests pass. The real one-file `integration_frozen_restart.py` probe 
 ## 0.6.0 recovery and support checks
 
 105 tests pass, including identity-bound restore, changed-field scope, incomplete-write restore, missing backup data, reduced hardware limits, private-data exclusion, malformed diagnostics, three role presets, server role rejection and a real Tk restore dialog rereading into the editor without writes. Library/history layout and compatibility dialog initialized offline at the minimum window size. No live device writes were performed. Repeater and Room Server profiles are reference-only; their CLI adapter and hardware validation remain future work. The user confirmed that updating 0.5.3 to 0.5.4 restarted successfully.
+
+## 0.7.0 planning tools
+
+116 tests pass. Added strict role-reply parsing and mocked serial/Companion identification, editable profile-note persistence, dry-run key exclusion and compatibility output, SQLite WAL-consistent backup, failed-backup preservation, and release-note extraction. Real Tk checks cover note editing, release text and library width. USB role detection is source-audited against official 1.17.1 CommonCLI and role definitions but still requires a live Repeater/Room Server bench test; no hardware writes were performed. Public community research is documented separately in COMMUNITY_REQUESTS.md.

@@ -5,7 +5,7 @@ import queue
 import threading
 from diagnostics import record_error
 import tkinter as tk
-from tkinter import ttk, messagebox, simpledialog
+from tkinter import ttk, messagebox, simpledialog, filedialog
 from datetime import datetime
 from device import serial_ports, bluetooth_devices, read_device, save_json
 from model import FIELDS, display
@@ -50,6 +50,7 @@ class BatchWindow:
         button(profilebar,'Compare',self.compare)
         more=ttk.Menubutton(profilebar,text='More');more.pack(side='left');self.controls.append(more)
         menu=tk.Menu(more,tearoff=False);more.configure(menu=menu)
+        menu.add_command(label='Export dry run…',command=lambda:self.guard(self.export_dry_run))
         menu.add_command(label='Compatibility review…',command=lambda:self.guard(self.compatibility))
         menu.add_command(label='Individual names & positions…',command=lambda:self.guard(self.individual_step))
         menu.add_command(label='Save shared profile…',command=lambda:self.guard(self.save_shared))
@@ -268,6 +269,14 @@ class BatchWindow:
 
     def set_details(self,text):
         self.details.configure(state='normal');self.details.delete('1.0','end');self.details.insert('1.0',text);self.details.configure(state='disabled')
+
+    def export_dry_run(self):
+        ports=self.selected()
+        path=filedialog.asksaveasfilename(parent=self.window,title='Save dry run (may contain names and locations)',defaultextension='.json',initialfile='MeshCore-batch-dry-run.json',filetypes=[('Dry run JSON','*.json')])
+        if not path:return
+        from dry_run import export
+        export(path,[self.snapshots[p] for p in ports if p in self.snapshots],self.document,self.individual,[p for p in ports if p not in self.snapshots])
+        self.status.set('Dry run saved. Includes compatibility and any reviewed individual names; no settings written, channel keys excluded.')
 
     def compatibility(self):
         from compatibility import show

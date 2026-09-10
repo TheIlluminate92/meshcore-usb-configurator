@@ -4,6 +4,11 @@ import uuid
 from pathlib import Path
 from model import profile, load_document, validate_naming
 
+def validate_notes(value=''):
+    if not isinstance(value,str) or len(value)>4000 or '\x00' in value:
+        raise ValueError('Profile notes must be text, up to 4000 characters, without null characters.')
+    return value
+
 PERSONAL = {'name', 'latitude', 'longitude'}
 
 class ProfileLibrary:
@@ -22,7 +27,7 @@ class ProfileLibrary:
                     raise ValueError('Invalid profile name')
                 if str(uuid.UUID(path.stem))!=path.stem:
                     raise ValueError('Invalid profile identifier')
-                entries.append({'id':path.stem, 'name':data['profile_name'], 'settings':settings, 'channels':channels,'naming':validate_naming(data.get('naming'))})
+                entries.append({'id':path.stem, 'name':data['profile_name'], 'settings':settings, 'channels':channels,'notes':validate_notes(data.get('notes','')),'naming':validate_naming(data.get('naming'))})
             except Exception:
                 errors.append(path.name)
         return sorted(entries, key=lambda e:e['name'].casefold()), errors
@@ -30,7 +35,7 @@ class ProfileLibrary:
     def path(self, ident):
         return self.folder / (str(uuid.UUID(ident)) + '.json')
 
-    def save(self, name, settings, channels, ident=None, naming=None):
+    def save(self, name, settings, channels, ident=None, naming=None, notes=None):
         name = name.strip()
         if not name or len(name)>80:
             raise ValueError('Choose a profile name with 1–80 characters.')
@@ -44,6 +49,9 @@ class ProfileLibrary:
         if naming is None and ident:
             naming=next((e['naming'] for e in entries if e['id']==ident),None)
         data['naming']=validate_naming(naming)
+        if notes is None and ident:
+            notes=next((e.get('notes','') for e in entries if e['id']==ident),'')
+        data['notes']=validate_notes('' if notes is None else notes)
         ident = ident or str(uuid.uuid4())
         path = self.path(ident)
         self.folder.mkdir(parents=True, exist_ok=True)
