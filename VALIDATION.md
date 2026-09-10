@@ -1,6 +1,6 @@
 # Validation status
 
-Current application version: **0.5.2**. Latest completed local run: **94 automated tests passed**, plus portable executable startup with 23 controls and history initialization. Documentation maintenance does not constitute a new application test run.
+Current application version: **0.7.0**. Latest completed local run: **116 automated tests passed**, plus portable executable startup with 23 controls and history initialization. Documentation maintenance does not constitute a new application test run.
 
 | Area | Evidence / remaining work |
 | --- | --- |
@@ -14,8 +14,8 @@ Current application version: **0.5.2**. Latest completed local run: **94 automat
 | Bluetooth | Code and simulated transport tests exist; live connection/read/write unvalidated |
 | Restart persistence | Identity matching and expected-value comparison tested with synthetic reads; real power-cycle persistence unvalidated |
 | T1000-E | Magnetic USB and board-specific behavior unvalidated |
-| Updates | Version/digest/path/redirect safeguards and tampered/independent staging tested. Disposable Windows helper test passes: parent exit wait, EXE replacement, restart, retained backup and user data. Anonymous v0.5.1 release lookup and EXE download passed with SHA-256 verification against public GitHub. Local replacement helper passes separately; one combined app-driven update remains unvalidated |
-| Release pipeline | Workflow is committed; publishing completion is not asserted by the local test results |
+| Updates | Version/digest/path/redirect safeguards and tampered/independent staging tested. Disposable Windows helper test passes: parent exit wait, EXE replacement, restart, retained backup and user data. Anonymous v0.5.1 release lookup and EXE download passed with SHA-256 verification against public GitHub. Packaged self-update probe passes and gates releases. User confirmed the 0.5.3 → 0.5.4 update/restart |
+| Release pipeline | 0.7.0 Windows EXE and portable ZIP are published. Release checks include the unit suite and packaged restart probe |
 
 ## Next bench checks
 

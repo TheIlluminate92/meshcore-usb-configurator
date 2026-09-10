@@ -1,5 +1,7 @@
 # MeshCore Configurator
 
+[Download the portable Windows app](https://github.com/TheIlluminate92/meshcore-usb-configurator/releases/latest) · [Release notes](CHANGELOG.md) · [Get help](SUPPORT.md) · [Roadmap](ROADMAP.md)
+
 A portable Windows app for configuring MeshCore Companion radios over USB or Bluetooth. Profiles use JSON; the app communicates through supported Companion commands, never by editing internal flash files.
 
 ## Run the portable app
@@ -52,11 +54,11 @@ For a persistence check, restart a radio yourself, choose its current connection
 
 After you approve **Install & restart**, the app verifies the release asset's SHA-256 digest and replaces only the executable after exit. User Data stays intact. A previous executable and `update.log` are retained in `User Data/Updates`. If replacement fails, the existing EXE remains; consult the log. Update checks are separate from radio work and are blocked while device operations or batch work are active.
 
-A source commit is not itself an installable update. The release build must complete and publish the Windows asset. The disposable Windows replacement test passes, including exit waiting, restart, backup and data preservation. Public GitHub download plus app installation is validated separately from the local replacement helper.
+A source commit is not itself an installable update. The release build must complete and publish the Windows asset. The disposable Windows replacement test passes, including exit waiting, restart, backup and data preservation. The user confirmed automatic update and restart from 0.5.3 to 0.5.4; release builds also run a packaged self-update test.
 
 ## Validation and limitations
 
-The latest local suite passed **94 tests**, and the portable EXE passed its startup check. A prior read-only Heltec T114 check on firmware v1.17.1 returned **22 settings, 40 channel slots and zero optional read errors**; GPS interval was not reported.
+The latest local suite passed **116 tests**, and the portable EXE passed its startup check. A prior read-only Heltec T114 check on firmware v1.17.1 returned **22 settings, 40 channel slots and zero optional read errors**; GPS interval was not reported.
 
 Live Bluetooth configuration, real multi-radio writes, persistence after radio restart, and Seeed SenseCAP T1000-E magnetic USB compatibility remain unvalidated. See [VALIDATION.md](VALIDATION.md), [CHANGELOG.md](CHANGELOG.md), [SETTINGS_AUDIT.md](SETTINGS_AUDIT.md) and [FIRMWARE_MAP.md](FIRMWARE_MAP.md).
 
@@ -82,7 +84,7 @@ Saved profiles includes **Companion**, **Repeater** and **Room Server** built-in
 
 Use **Compatibility** in Saved profiles or **More → Compatibility review** in Batch editor for per-radio availability and changes. Unsupported or invalid profile items block the batch; edit the profile or uncheck incompatible radios. Nothing is silently skipped.
 
-## Planning tools (0.7.0)
+## Planning tools
 
 - **Help → Detect firmware role**: select a connection first. USB server probing sends only `get role` at 115200 baud; Companion identification uses its supported handshake. Older/custom firmware without a recognized reply stays Unknown. Role detection does not enable server writes or change firmware. Successful normal Companion reads also label the role.
 - **Saved profiles → Notes**: write your own multi-line notes (up to 4000 characters). Notes survive library updates, renames and profile import/export. The scope/save dialog includes notes too. Built-ins remain immutable.

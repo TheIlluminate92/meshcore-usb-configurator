@@ -33,3 +33,10 @@ _MEI*/
 
 portable/
 User Data/
+
+# Private diagnostics, portable backups and release-generation output
+logs/
+*.jsonl
+*.jsonl.*
+*.zip
+release-notes.md
